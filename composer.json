@@ -1,0 +1,21 @@
+{
+    "name": "guzzle/cache-subscriber",
+    "description": "Guzzle HTTP cache subscriber",
+    "homepage": "http://guzzlephp.org/",
+    "keywords": ["cache", "guzzle"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Michael Dowling",
+            "email": "mtdowling@gmail.com",
+            "homepage": "https://github.com/mtdowling"
+        }
+    ],
+    "require": {
+        "php": ">=5.4.0",
+        "guzzle/guzzle": "dev-guzzle4"
+    },
+    "autoload": {
+        "psr-4": { "GuzzleHttp\\Subscriber\\Cache\\": "src" }
+    }
+}
