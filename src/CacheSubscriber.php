@@ -2,28 +2,37 @@
 
 namespace GuzzleHttp\Subscriber\Cache;
 
-use GuzzleHttp\Event\Event;
+use GuzzleHttp\Message\MessageInterface;
+use GuzzleHttp\ClientInterface;
+use GuzzleHttp\Event\BeforeEvent;
+use GuzzleHttp\Event\CompleteEvent;
+use GuzzleHttp\Event\ErrorEvent;
+use GuzzleHttp\Event\RequestEvents;
 use GuzzleHttp\Event\SubscriberInterface;
 use GuzzleHttp\Message\RequestInterface;
 use GuzzleHttp\Message\Response;
 use GuzzleHttp\Message\ResponseInterface;
 
 /**
- * Plugin to enable the caching of GET and HEAD requests.  Caching can be done on all requests passing through this
- * plugin or only after retrieving resources with cacheable response headers.
+ * Plugin to enable the caching of GET and HEAD requests.
  *
- * This is a simple implementation of RFC 2616 and should be considered a private transparent proxy cache, meaning
- * authorization and private data can be cached.
+ * Caching can be done on all requests passing through this plugin or only
+ * after retrieving resources with cacheable response headers.
  *
- * It also implements RFC 5861's `stale-if-error` Cache-Control extension, allowing stale cache responses to be used
- * when an error is encountered (such as a `500 Internal Server Error` or DNS failure).
+ * This is a simple implementation of RFC 2616 and should be considered a
+ * private transparent proxy cache, meaning authorization and private data can
+ * be cached.
+ *
+ * It also implements RFC 5861's `stale-if-error` Cache-Control extension,
+ * allowing stale cache responses to be used when an error is encountered
+ * (such as a `500 Internal Server Error` or DNS failure).
  */
 class CacheSubscriber implements SubscriberInterface
 {
-    /** @var RevalidationInterface Cache revalidation strategy */
+    /** @var callable Cache revalidation strategy */
     protected $revalidation;
 
-    /** @var CanCacheStrategyInterface Object used to determine if a request can be cached */
+    /** @var CanCacheStrategyInterface Determines if a request is cacheable */
     protected $canCache;
 
     /** @var CacheStorageInterface $cache Object used to cache responses */
@@ -33,74 +42,69 @@ class CacheSubscriber implements SubscriberInterface
     protected $autoPurge;
 
     /**
-     * @param array|CacheStorageInterface $options Array of options for the cache plugin,
-     *     cache adapter, or cache storage object.
-     *     - CacheStorageInterface storage:      Adapter used to cache responses
-     *     - RevalidationInterface revalidation: Cache revalidation strategy
-     *     - CanCacheInterface     can_cache:    Object used to determine if a request can be cached
-     *     - bool                  auto_purge    Set to true to automatically PURGE resources when non-idempotent
-     *                                           requests are sent to a resource. Defaults to false.
+     * @param array $options Array of options used to create the subscriber
+     *
+     *     - storage: (CacheStorageInterface) Adapter used to cache responses
+     *     - revalidate: callable|bool cache revalidation strategy. Set to
+     *       false to disable revalidation, or pass a callable to perform
+     *       custom revalidation. Omitting this value will utilize a default
+     *       revalidation strategy. The callable accepts a request and response,
+     *       and returns the response that should be used after revalidation.
+     *     - can_cache: callable used to determine if a request can be cached.
+     *       The callable accepts a request object and returns true or false if
+     *       the request can be cached.
+     *     - auto_purge: (bool) Set to true to automatically PURGE resources
+     *       when non-idempotent requests are sent to a resource. Defaults to
+     *       false.
+     *
      * @throws \InvalidArgumentException if no cache is provided
      */
-    public function __construct($options = null)
+    public function __construct($options = [])
     {
-        if (!is_array($options)) {
-            if ($options instanceof CacheAdapterInterface) {
-                $options = array('storage' => new DefaultCacheStorage($options));
-            } elseif ($options instanceof CacheStorageInterface) {
-                $options = array('storage' => $options);
-            } elseif ($options) {
-                $options = array('storage' => new DefaultCacheStorage(CacheAdapterFactory::fromCache($options)));
-            } else {
-                throw new \InvalidArgumentException('No cache was provided');
-            }
+        if (!isset($options['storage'])) {
+            throw new \InvalidArgumentException('storage is a required option');
+        } else {
+            $this->storage = $options['storage'];
         }
-
-        $this->autoPurge = isset($options['auto_purge']) ? $options['auto_purge'] : false;
-
-        // Add a cache storage if a cache adapter was provided
-        $this->storage = isset($options['storage'])
-            ? $options['storage']
-            : new DefaultCacheStorage(new DoctrineCacheAdapter(new ArrayCache()));
 
         if (!isset($options['can_cache'])) {
             $this->canCache = new DefaultCanCacheStrategy();
         } else {
-            $this->canCache = is_callable($options['can_cache'])
-                ? new CallbackCanCacheStrategy($options['can_cache'])
-                : $options['can_cache'];
+            $this->canCache = $options['can_cache'];
         }
 
-        // Use the provided revalidation strategy or the default
-        $this->revalidation = isset($options['revalidation'])
-            ? $options['revalidation']
-            : new DefaultRevalidation($this->storage, $this->canCache);
+        $this->autoPurge = isset($options['auto_purge'])
+            ? $options['auto_purge']
+            : false;
+
+        if (!isset($options['revalidation'])) {
+            $this->revalidation = new DefaultRevalidation();
+        } elseif ($options['revalidation'] === false) {
+            $this->revalidation = function ($req, $res) { return $res; };
+        } else {
+            $this->revalidation = $options['revalidation'];
+        }
     }
 
-    public static function getSubscribedEvents()
+    public function getEvents()
     {
         return [
-            'before'   => ['onRequestBeforeSend', -255],
-            'complete' => ['onRequestSent', 255],
-            'error'    => ['onRequestError', 0]
+            'before'   => ['onBefore', RequestEvents::LATE],
+            'complete' => ['onComplete', RequestEvents::EARLY],
+            'error'    => ['onRequestError', RequestEvents::EARLY]
         ];
     }
 
-    /**
-     * Check if a response in cache will satisfy the request before sending
-     *
-     * @param Event $event
-     */
-    public function onRequestBeforeSend(Event $event)
+    public function onBefore(BeforeEvent $event)
     {
         $request = $event['request'];
-        $request->addHeader('Via', sprintf('%s GuzzleCache/%s', $request->getProtocolVersion(), \GuzzleHttp\VERSION));
+        $this->addViaHeader($request);
 
         if (!$this->canCache->canCacheRequest($request)) {
             switch ($request->getMethod()) {
                 case 'PURGE':
                     $this->purge($request);
-                    $request->setResponse(new Response(200, array(), 'purged'));
+                    $request->setResponse(new Response(200, [], 'purged'));
                     break;
                 case 'PUT':
                 case 'POST':
@@ -118,7 +122,7 @@ class CacheSubscriber implements SubscriberInterface
             $params['cache.lookup'] = true;
             $response->setHeader(
                 'Age',
-                time() - strtotime($response->getDate() ? : $response->getLastModified() ?: 'now')
+                time() - strtotime($response->getDate() ?: $response->getLastModified() ?: 'now')
             );
             // Validate that the response satisfies the request
             if ($this->canResponseSatisfyRequest($request, $response)) {
@@ -130,12 +134,7 @@ class CacheSubscriber implements SubscriberInterface
         }
     }
 
-    /**
-     * If possible, store a response in cache after sending
-     *
-     * @param Event $event
-     */
-    public function onRequestSent(Event $event)
+    public function onComplete(CompleteEvent $event)
     {
         $request = $event['request'];
         $response = $event['response'];
@@ -150,12 +149,7 @@ class CacheSubscriber implements SubscriberInterface
         $this->addResponseHeaders($request, $response);
     }
 
-    /**
-     * If possible, return a cache response on an error
-     *
-     * @param Event $event
-     */
-    public function onRequestError(Event $event)
+    public function onError(ErrorEvent $event)
     {
         $request = $event['request'];
 
@@ -166,7 +160,7 @@ class CacheSubscriber implements SubscriberInterface
         if ($response = $this->storage->fetch($request)) {
             $response->setHeader(
                 'Age',
-                time() - strtotime($response->getLastModified() ? : $response->getDate() ?: 'now')
+                time() - strtotime($response->getLastModified() ?: $response->getDate() ?: 'now')
             );
 
             if ($this->canResponseSatisfyFailedRequest($request, $response)) {
@@ -216,8 +210,10 @@ class CacheSubscriber implements SubscriberInterface
      *
      * @return bool
      */
-    public function canResponseSatisfyRequest(RequestInterface $request, ResponseInterface $response)
-    {
+    public function canResponseSatisfyRequest(
+        RequestInterface $request,
+        ResponseInterface $response
+    ) {
         $responseAge = $response->calculateAge();
         $reqc = $request->getHeader('Cache-Control');
         $resc = $response->getHeader('Cache-Control');
@@ -255,29 +251,40 @@ class CacheSubscriber implements SubscriberInterface
     }
 
     /**
-     * Check if a cache response satisfies a failed request's caching constraints
+     * Check if a cache response satisfies a failed request's caching
+     * constraints
      *
      * @param RequestInterface  $request  Request to validate
      * @param ResponseInterface $response Response to validate
      *
      * @return bool
      */
-    public function canResponseSatisfyFailedRequest(RequestInterface $request, ResponseInterface $response)
-    {
+    public function canResponseSatisfyFailedRequest(
+        RequestInterface $request,
+        ResponseInterface $response
+    ) {
         $reqc = $request->getHeader('Cache-Control');
         $resc = $response->getHeader('Cache-Control');
-        $requestStaleIfError = $reqc ? $reqc->getDirective('stale-if-error') : null;
-        $responseStaleIfError = $resc ? $resc->getDirective('stale-if-error') : null;
+        $requestStaleIfError = $reqc
+            ? $reqc->getDirective('stale-if-error')
+            : null;
+        $responseStaleIfError = $resc
+            ? $resc->getDirective('stale-if-error')
+            : null;
 
         if (!$requestStaleIfError && !$responseStaleIfError) {
             return false;
         }
 
-        if (is_numeric($requestStaleIfError) && $response->getAge() - $response->getMaxAge() > $requestStaleIfError) {
+        if (is_numeric($requestStaleIfError) &&
+            $response->getAge() - $response->getMaxAge() > $requestStaleIfError
+        ) {
             return false;
         }
 
-        if (is_numeric($responseStaleIfError) && $response->getAge() - $response->getMaxAge() > $responseStaleIfError) {
+        if (is_numeric($responseStaleIfError) &&
+            $response->getAge() - $response->getMaxAge() > $responseStaleIfError
+        ) {
             return false;
         }
 
@@ -291,8 +298,6 @@ class CacheSubscriber implements SubscriberInterface
      */
     public function purge($url)
     {
-        // BC compatibility with previous version that accepted a Request object
-        $url = $url instanceof RequestInterface ? $url->getUrl() : $url;
         $this->storage->purge($url);
     }
 
@@ -302,12 +307,15 @@ class CacheSubscriber implements SubscriberInterface
      * @param RequestInterface  $request  Request
      * @param ResponseInterface $response Response to add headers to
      */
-    protected function addResponseHeaders(RequestInterface $request, ResponseInterface $response)
-    {
-        $params = $request->getParams();
-        $response->setHeader('Via', sprintf('%s GuzzleCache/%s', $request->getProtocolVersion(), \GuzzleHttp\VERSION));
+    private function addResponseHeaders(
+        RequestInterface $request,
+        ResponseInterface $response
+    ) {
+        $this->addViaHeader($response);
+        $params = $request->getConfig();
+        $lookup = ($params['cache.lookup'] === true ? 'HIT' : 'MISS')
+            . ' from GuzzleCache';
 
-        $lookup = ($params['cache.lookup'] === true ? 'HIT' : 'MISS') . ' from GuzzleCache';
         if ($header = $response->getHeader('X-Cache-Lookup')) {
             // Don't add duplicates
             $values = $header->toArray();
@@ -325,20 +333,47 @@ class CacheSubscriber implements SubscriberInterface
             $xcache = 'MISS from GuzzleCache';
         }
 
-        if ($header = $response->getHeader('X-Cache')) {
-            // Don't add duplicates
-            $values = $header->toArray();
+        if ($header = $response->getHeader('X-Cache', true)) {
             $values[] = $xcache;
             $response->setHeader('X-Cache', array_unique($values));
         } else {
             $response->setHeader('X-Cache', $xcache);
         }
 
-        if ($response->isFresh() === false) {
-            $response->addHeader('Warning', sprintf('110 GuzzleCache/%s "Response is stale"', \GuzzleHttp\VERSION));
-            if ($params['cache.hit'] === 'error') {
-                $response->addHeader('Warning', sprintf('111 GuzzleCache/%s "Revalidation failed"', \GuzzleHttp\VERSION));
-            }
+        $this->addFreshnessWarnings($response, $params['cache.hit']);
+    }
+
+    private function addFreshnessWarnings(ResponseInterface $response, $hit)
+    {
+        if ($response->isFresh() !== false) {
+            return;
         }
+
+        $response->addHeader(
+            'Warning',
+            sprintf(
+                '110 GuzzleCache/%s "Response is stale"',
+                ClientInterface::VERSION
+            )
+        );
+
+        if ($hit === 'error') {
+            $response->addHeader(
+                'Warning',
+                sprintf(
+                    '111 GuzzleCache/%s "Revalidation failed"',
+                    ClientInterface::VERSION
+                )
+            );
+        }
+    }
+
+    private function addViaHeader(MessageInterface $message)
+    {
+        $message->addHeader('Via', sprintf(
+            '%s GuzzleCache/%s',
+            $message->getProtocolVersion(),
+            ClientInterface::VERSION
+        ));
     }
 }

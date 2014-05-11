@@ -9,7 +9,7 @@ use GuzzleHttp\Exception\BadResponseException;
 /**
  * Default revalidation strategy
  */
-class DefaultRevalidation implements RevalidationInterface
+class DefaultRevalidation
 {
     /** @var CacheStorageInterface Cache object storing cache data */
     protected $storage;

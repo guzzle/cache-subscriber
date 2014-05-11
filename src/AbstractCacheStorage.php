@@ -17,8 +17,10 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
     /** @var int Default cache TTL */
     protected $defaultTtl;
 
-    public function cache(RequestInterface $request, ResponseInterface $response)
-    {
+    public function cache(
+        RequestInterface $request,
+        ResponseInterface $response
+    ) {
         $currentTime = time();
 
         $ttl = 0;
@@ -42,8 +44,14 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
                 if ($entry[4] < $currentTime) {
                     continue;
                 }
-                $entry[1]['vary'] = isset($entry[1]['vary']) ? $entry[1]['vary'] : '';
-                if ($vary != $entry[1]['vary'] || !$this->requestsMatch($vary, $entry[0], $persistedRequest)) {
+
+                $entry[1]['vary'] = isset($entry[1]['vary'])
+                    ? $entry[1]['vary']
+                    : '';
+
+                if ($vary != $entry[1]['vary'] ||
+                    !$this->requestsMatch($vary, $entry[0], $persistedRequest)
+                ) {
                     $entries[] = $entry;
                 }
             }
@@ -52,7 +60,10 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
         // Persist the response body if needed
         $bodyDigest = null;
         if ($response->getBody() && $response->getBody()->getSize() > 0) {
-            $bodyDigest = $this->getBodyKey($request->getUrl(), $response->getBody());
+            $bodyDigest = $this->getBodyKey(
+                $request->getUrl(),
+                $response->getBody()
+            );
             $this->saveCache($bodyDigest, (string) $response->getBody(), $ttl);
         }
 
@@ -99,7 +110,8 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
         $headers = $this->persistHeaders($request);
         $entries = unserialize($entries);
         foreach ($entries as $index => $entry) {
-            if ($this->requestsMatch(isset($entry[1]['vary']) ? $entry[1]['vary'] : '', $headers, $entry[0])) {
+            $vary = isset($entry[1]['vary']) ? $entry[1]['vary'] : '';
+            if ($this->requestsMatch($vary, $headers, $entry[0])) {
                 $match = $entry;
                 break;
             }
@@ -119,7 +131,8 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
                 if ($body = $this->getCache($match[3])) {
                     $response->setBody($body);
                 } else {
-                    // The response is not valid because the body was somehow deleted
+                    // The response is not valid because the body was somehow
+                    // deleted
                     $response = -1;
                 }
             }
@@ -205,7 +218,7 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
     private function persistHeaders(MessageInterface $message)
     {
         // Headers are excluded from the caching (see RFC 2616:13.5.1)
-        static $noCache = array(
+        static $noCache = [
             'age' => true,
             'connection' => true,
             'keep-alive' => true,
@@ -217,13 +230,15 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
             'upgrade' => true,
             'set-cookie' => true,
             'set-cookie2' => true
-        );
+        ];
 
         // Clone the response to not destroy any necessary headers when caching
-        $headers = $message->getHeaders()->toArray();
+        $headers = $message->getHeaders();
         $headers = array_diff_key($headers, $noCache);
         // Cast the headers to a string
-        $headers = array_map(function ($h) { return (string) $h; }, $headers);
+        $headers = array_map(function ($h) {
+            return implode(', ', $h);
+        }, $headers);
 
         return $headers;
     }
