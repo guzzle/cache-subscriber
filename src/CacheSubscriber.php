@@ -97,40 +97,32 @@ class CacheSubscriber implements SubscriberInterface
 
     public function onBefore(BeforeEvent $event)
     {
-        $request = $event['request'];
-        $this->addViaHeader($request);
+        $req = $event->getRequest();
+        $this->addViaHeader($req);
 
-        if (!$this->canCache->canCacheRequest($request)) {
-            switch ($request->getMethod()) {
-                case 'PURGE':
-                    $this->purge($request);
-                    $request->setResponse(new Response(200, [], 'purged'));
-                    break;
-                case 'PUT':
-                case 'POST':
-                case 'DELETE':
-                case 'PATCH':
-                    if ($this->autoPurge) {
-                        $this->purge($request);
-                    }
-            }
+        if ($this->canCache->canCacheRequest($req) ||
+            $this->handlePurge($req, $event)
+        ) {
             return;
         }
 
-        if ($response = $this->storage->fetch($request)) {
-            $params = $request->getParams();
-            $params['cache.lookup'] = true;
-            $response->setHeader(
-                'Age',
-                time() - strtotime($response->getDate() ?: $response->getLastModified() ?: 'now')
-            );
-            // Validate that the response satisfies the request
-            if ($this->canResponseSatisfyRequest($request, $response)) {
-                if (!isset($params['cache.hit'])) {
-                    $params['cache.hit'] = true;
-                }
-                $request->setResponse($response);
+        if (!($response = $this->storage->fetch($req))) {
+            return;
+        }
+
+        $params = $req->getConfig();
+        $params['cache.lookup'] = true;
+        $response->setHeader(
+            'Age',
+            time() - strtotime($response->getDate() ?: $response->getLastModified() ?: 'now')
+        );
+
+        // Validate that the response satisfies the request
+        if ($this->canResponseSatisfyRequest($req, $response)) {
+            if (!isset($params['cache.hit'])) {
+                $params['cache.hit'] = true;
             }
+            $req->setResponse($response);
         }
     }
 
@@ -292,16 +284,6 @@ class CacheSubscriber implements SubscriberInterface
     }
 
     /**
-     * Purge all cache entries for a given URL
-     *
-     * @param string $url URL to purge
-     */
-    public function purge($url)
-    {
-        $this->storage->purge($url);
-    }
-
-    /**
      * Add the plugin's headers to a response
      *
      * @param RequestInterface  $request  Request
@@ -345,7 +327,7 @@ class CacheSubscriber implements SubscriberInterface
 
     private function addFreshnessWarnings(ResponseInterface $response, $hit)
     {
-        if ($response->isFresh() !== false) {
+        if ($response->isFresh()) {
             return;
         }
 
@@ -375,5 +357,25 @@ class CacheSubscriber implements SubscriberInterface
             $message->getProtocolVersion(),
             ClientInterface::VERSION
         ));
+    }
+
+    /**
+     * Handle request purging, and return true if this is a cache PURGE
+     */
+    private function handlePurge(RequestInterface $req, BeforeEvent $event)
+    {
+        static $purge = ['PUT' => 1, 'POST' => 1, 'DELETE' => 1, 'PATCH' => 1];
+
+        if ($req->getMethod() == 'PURGE') {
+            $this->storage->purge($req);
+            $event->intercept(new Response(200, [], 'purged'));
+            return true;
+        }
+
+        if ($this->autoPurge && isset($purge[$req->getMethod()])) {
+            $this->storage->purge($req);
+        }
+
+        return false;
     }
 }
