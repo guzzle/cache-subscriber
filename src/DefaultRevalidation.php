@@ -14,21 +14,25 @@ class DefaultRevalidation
     /** @var CacheStorageInterface Cache object storing cache data */
     protected $storage;
 
-    /** @var CanCacheStrategyInterface */
+    /** @var callable */
     protected $canCache;
 
     /**
-     * @param CacheStorageInterface     $cache    Cache storage
-     * @param CanCacheStrategyInterface $canCache Determines if a message can be cached
+     * @param CacheStorageInterface $cache    Cache storage
+     * @param callable              $canCache Determines if a message can be cached
      */
-    public function __construct(CacheStorageInterface $cache, CanCacheStrategyInterface $canCache = null)
-    {
+    public function __construct(
+        CacheStorageInterface $cache,
+        callable $canCache = null
+    ) {
         $this->storage = $cache;
         $this->canCache = $canCache ?: new DefaultCanCacheStrategy();
     }
 
-    public function revalidate(RequestInterface $request, ResponseInterface $response)
-    {
+    public function revalidate(
+        RequestInterface $request,
+        ResponseInterface $response
+    ) {
         try {
             $revalidate = $this->createRevalidationRequest($request, $response);
             $validateResponse = $revalidate->send();
@@ -92,8 +96,10 @@ class DefaultRevalidation
      *
      * @return RequestInterface returns a revalidation request
      */
-    protected function createRevalidationRequest(RequestInterface $request, ResponseInterface $response)
-    {
+    protected function createRevalidationRequest(
+        RequestInterface $request,
+        ResponseInterface $response
+    ) {
         $revalidate = clone $request;
         $revalidate->removeHeader('Pragma')
             ->removeHeader('Cache-Control')
@@ -124,8 +130,10 @@ class DefaultRevalidation
      *
      * @return bool Returns true if valid, false if invalid
      */
-    protected function handle200Response(RequestInterface $request, ResponseInterface $validateResponse)
-    {
+    protected function handle200Response(
+        RequestInterface $request,
+        ResponseInterface $validateResponse
+    ) {
         $request->setResponse($validateResponse);
         if ($this->canCache->canCacheResponse($validateResponse)) {
             $this->storage->cache($request, $validateResponse);
@@ -148,10 +156,11 @@ class DefaultRevalidation
         ResponseInterface $validateResponse,
         ResponseInterface $response
     ) {
-        static $replaceHeaders = array('Date', 'Expires', 'Cache-Control', 'ETag', 'Last-Modified');
+        static $replaceHeaders = ['Date', 'Expires', 'Cache-Control',
+            'ETag', 'Last-Modified'];
 
         // Make sure that this response has the same ETag
-        if ($validateResponse->getEtag() != $response->getEtag()) {
+        if ($validateResponse->getHeader('ETag') !== $response->getHeader('ETag')) {
             return false;
         }
 

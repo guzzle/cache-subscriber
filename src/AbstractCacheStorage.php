@@ -8,6 +8,7 @@ use GuzzleHttp\Message\RequestInterface;
 use GuzzleHttp\Message\ResponseInterface;
 use GuzzleHttp\Message\Response;
 use GuzzleHttp\Stream\StreamInterface;
+use GuzzleHttp\Stream;
 
 abstract class AbstractCacheStorage implements CacheStorageInterface
 {
@@ -25,9 +26,9 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
 
         $ttl = 0;
         if ($cacheControl = $response->getHeader('Cache-Control')) {
-            $stale = $cacheControl->getDirective('stale-if-error');
+            $stale = CacheSubscriber::getDirective($response, 'stale-if-error');
             $ttl += $stale == true ? $ttl : $stale;
-            $ttl += $cacheControl->getDirective('max-age');
+            $ttl += CacheSubscriber::getDirective($response, 'max-age');
         }
         $ttl = $ttl ?: $this->defaultTtl;
 
@@ -176,7 +177,7 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
      */
     protected function getBodyKey($url, StreamInterface $body)
     {
-        return $this->keyPrefix . md5($url) . $body->getContentMd5();
+        return $this->keyPrefix . md5($url) . Stream\hash($body, 'md5');
     }
 
     abstract protected function getCache($key);
