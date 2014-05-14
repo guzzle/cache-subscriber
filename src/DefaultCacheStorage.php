@@ -9,11 +9,11 @@ class DefaultCacheStorage extends AbstractCacheStorage
     protected $cache;
 
     /**
-     * @param mixed  $cache      Cache used to store cache data
-     * @param string $keyPrefix  Provide an optional key prefix to prefix on all cache keys
-     * @param int    $defaultTtl Default cache TTL
+     * @param CacheDriverInterface $cache      Cache used to store cache data
+     * @param string               $keyPrefix  Provide an optional key prefix to prefix on all cache keys
+     * @param int                  $defaultTtl Default cache TTL
      */
-    public function __construct($cache, $keyPrefix = '', $defaultTtl = 3600)
+    public function __construct(CacheDriverInterface $cache, $keyPrefix = '', $defaultTtl = 3600)
     {
         $this->cache = $cache;
         $this->defaultTtl = $defaultTtl;
