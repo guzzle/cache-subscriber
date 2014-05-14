@@ -1,5 +1,4 @@
 <?php
-
 namespace GuzzleHttp\Subscriber\Cache;
 
 use GuzzleHttp\Message\MessageInterface;
@@ -22,59 +21,27 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
         RequestInterface $request,
         ResponseInterface $response
     ) {
-        $currentTime = time();
-
-        $ttl = 0;
-        if ($cacheControl = $response->getHeader('Cache-Control')) {
-            $stale = CacheSubscriber::getDirective($response, 'stale-if-error');
-            $ttl += $stale == true ? $ttl : $stale;
-            $ttl += CacheSubscriber::getDirective($response, 'max-age');
-        }
-        $ttl = $ttl ?: $this->defaultTtl;
-
-        // Determine which manifest key should be used
+        $ctime = time();
+        $ttl = $this->getTtl($response);
         $key = $this->getCacheKey($request);
-        $persistedRequest = $this->persistHeaders($request);
-        $entries = array();
-
-        if ($manifest = $this->getCache($key)) {
-            // Determine which cache entries should still be in the cache
-            $vary = (string) $response->getHeader('Vary');
-            foreach (unserialize($manifest) as $entry) {
-                // Check if the entry is expired
-                if ($entry[4] < $currentTime) {
-                    continue;
-                }
-
-                $entry[1]['vary'] = isset($entry[1]['vary'])
-                    ? $entry[1]['vary']
-                    : '';
-
-                if ($vary != $entry[1]['vary'] ||
-                    !$this->requestsMatch($vary, $entry[0], $persistedRequest)
-                ) {
-                    $entries[] = $entry;
-                }
-            }
-        }
+        $headers = $this->persistHeaders($request);
+        $entries = $this->getManifestEntries($key, $ctime, $response, $headers);
+        $bodyDigest = null;
 
         // Persist the response body if needed
-        $bodyDigest = null;
         if ($response->getBody() && $response->getBody()->getSize() > 0) {
-            $bodyDigest = $this->getBodyKey(
-                $request->getUrl(),
-                $response->getBody()
-            );
-            $this->saveCache($bodyDigest, (string) $response->getBody(), $ttl);
+            $body = $response->getBody();
+            $bodyDigest = $this->getBodyKey($request->getUrl(), $body);
+            $this->saveCache($bodyDigest, (string) $body, $ttl);
         }
 
-        array_unshift($entries, array(
-            $persistedRequest,
+        array_unshift($entries, [
+            $headers,
             $this->persistHeaders($response),
             $response->getStatusCode(),
             $bodyDigest,
-            $currentTime + $ttl
-        ));
+            $ctime + $ttl
+        ]);
 
         $this->saveCache($key, serialize($entries));
     }
@@ -82,34 +49,42 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
     public function delete(RequestInterface $request)
     {
         $key = $this->getCacheKey($request);
-        if ($entries = $this->getCache($key)) {
-            // Delete each cached body
-            foreach (unserialize($entries) as $entry) {
-                if ($entry[3]) {
-                    $this->deleteCache($entry[3]);
-                }
-            }
-            $this->deleteCache($key);
+        $entries = $this->getCache($key);
+
+        if (!$entries) {
+            return;
         }
+
+        // Delete each cached body
+        foreach (unserialize($entries) as $entry) {
+            if ($entry[3]) {
+                $this->deleteCache($entry[3]);
+            }
+        }
+
+        $this->deleteCache($key);
     }
 
     public function purge($url)
     {
-        foreach (array('GET', 'HEAD', 'POST', 'PUT', 'DELETE') as $method) {
-            $this->delete(new Request($method, $url));
+        foreach (['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS'] as $m) {
+            $this->delete(new Request($m, $url));
         }
     }
 
     public function fetch(RequestInterface $request)
     {
         $key = $this->getCacheKey($request);
-        if (!($entries = $this->getCache($key))) {
+        $entries = $this->getCache($key);
+
+        if (!$entries) {
             return null;
         }
 
         $match = null;
         $headers = $this->persistHeaders($request);
         $entries = unserialize($entries);
+
         foreach ($entries as $index => $entry) {
             $vary = isset($entry[1]['vary']) ? $entry[1]['vary'] : '';
             if ($this->requestsMatch($vary, $headers, $entry[0])) {
@@ -162,9 +137,8 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
      */
     protected function getCacheKey(RequestInterface $request)
     {
-        $url = $request->getUrl();
-
-        return $this->keyPrefix . md5($request->getMethod() . ' ' . $url);
+        return $this->keyPrefix
+            . md5($request->getMethod() . ' ' . $request->getUrl());
     }
 
     /**
@@ -234,13 +208,60 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
         ];
 
         // Clone the response to not destroy any necessary headers when caching
-        $headers = $message->getHeaders();
-        $headers = array_diff_key($headers, $noCache);
+        $headers = array_diff_key($message->getHeaders(), $noCache);
+
         // Cast the headers to a string
-        $headers = array_map(function ($h) {
-            return implode(', ', $h);
-        }, $headers);
+        foreach ($headers as &$value) {
+            $value = implode(', ', $value);
+        }
 
         return $headers;
+    }
+
+    private function getTtl(ResponseInterface $response)
+    {
+        $ttl = 0;
+
+        if ($cacheControl = $response->getHeader('Cache-Control')) {
+            $stale = CacheSubscriber::getDirective($response, 'stale-if-error');
+            $ttl += $stale == true ? $ttl : $stale;
+            $ttl += CacheSubscriber::getDirective($response, 'max-age');
+        }
+
+        return $ttl ?: $this->defaultTtl;
+    }
+
+    private function getManifestEntries(
+        $key,
+        $currentTime,
+        ResponseInterface $response,
+        $persistedRequest
+    ) {
+        $entries = [];
+        $manifest = $this->getCache($key);
+
+        if (!$manifest) {
+            return $entries;
+        }
+
+        // Determine which cache entries should still be in the cache
+        $vary = $response->getHeader('Vary');
+
+        foreach (unserialize($manifest) as $entry) {
+            // Check if the entry is expired
+            if ($entry[4] < $currentTime) {
+                continue;
+            }
+
+            $varyCmp = isset($entry[1]['vary']) ? $entries[1]['vary'] : '';
+
+            if ($vary != $varyCmp ||
+                !$this->requestsMatch($vary, $entry[0], $persistedRequest)
+            ) {
+                $entries[] = $entry;
+            }
+        }
+
+        return $entries;
     }
 }

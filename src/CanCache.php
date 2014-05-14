@@ -1,5 +1,4 @@
 <?php
-
 namespace GuzzleHttp\Subscriber\Cache;
 
 use GuzzleHttp\Message\RequestInterface;
@@ -7,23 +6,18 @@ use GuzzleHttp\Message\RequestInterface;
 /**
  * Default strategy used to determine of an HTTP request can be cached
  */
-class DefaultCanCacheStrategy
+class CanCache
 {
     public function __invoke(RequestInterface $request)
     {
+        $method = $request->getMethod();
+
         // Only GET and HEAD requests can be cached
-        if ($request->getMethod() != RequestInterface::GET &&
-            $request->getMethod() != RequestInterface::HEAD
-        ) {
+        if ($method !== 'GET' && $method !== 'HEAD') {
             return false;
         }
 
         // Never cache requests when using no-store
-        $noStore = CacheSubscriber::getDirective($request, 'no-store');
-        if ($noStore !== null && $noStore) {
-            return false;
-        }
-
-        return true;
+        return CacheSubscriber::getDirective($request, 'no-store') === null;
     }
 }

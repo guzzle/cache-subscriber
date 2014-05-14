@@ -1,5 +1,4 @@
 <?php
-
 namespace GuzzleHttp\Subscriber\Cache;
 
 use GuzzleHttp\Exception\RequestException;
@@ -12,7 +11,6 @@ use GuzzleHttp\Event\ErrorEvent;
 use GuzzleHttp\Event\RequestEvents;
 use GuzzleHttp\Event\SubscriberInterface;
 use GuzzleHttp\Message\RequestInterface;
-use GuzzleHttp\Message\Response;
 use GuzzleHttp\Message\ResponseInterface;
 
 /**
@@ -40,9 +38,6 @@ class CacheSubscriber implements SubscriberInterface
     /** @var CacheStorageInterface $cache Object used to cache responses */
     protected $storage;
 
-    /** @var bool */
-    protected $autoPurge;
-
     /**
      * @param array $options Array of options used to create the subscriber
      *
@@ -55,9 +50,6 @@ class CacheSubscriber implements SubscriberInterface
      *     - can_cache: callable used to determine if a request can be cached.
      *       The callable accepts a request object and returns true or false if
      *       the request can be cached.
-     *     - auto_purge: (bool) Set to true to automatically PURGE resources
-     *       when non-idempotent requests are sent to a resource. Defaults to
-     *       false.
      *
      * @throws \InvalidArgumentException if no cache is provided
      */
@@ -65,19 +57,12 @@ class CacheSubscriber implements SubscriberInterface
     {
         if (!isset($options['storage'])) {
             throw new \InvalidArgumentException('storage is a required option');
-        } else {
-            $this->storage = $options['storage'];
         }
 
-        if (!isset($options['can_cache'])) {
-            $this->canCache = new DefaultCanCacheStrategy();
-        } else {
-            $this->canCache = $options['can_cache'];
-        }
-
-        $this->autoPurge = isset($options['auto_purge'])
-            ? $options['auto_purge']
-            : false;
+        $this->storage = $options['storage'];
+        $this->canCache = isset($options['can_cache'])
+            ? $options['can_cache']
+            : new CanCache();
 
         if (!isset($options['revalidation'])) {
             $this->revalidation = new DefaultRevalidation(
@@ -85,7 +70,7 @@ class CacheSubscriber implements SubscriberInterface
                 $this->canCache
             );
         } elseif ($options['revalidation'] === false) {
-            $this->revalidation = function ($req, $res) { return $res; };
+            $this->revalidation = function ($_, $res) { return $res; };
         } else {
             $this->revalidation = $options['revalidation'];
         }
@@ -109,10 +94,7 @@ class CacheSubscriber implements SubscriberInterface
         $req = $event->getRequest();
         $this->addViaHeader($req);
 
-        // If the request cannot be cached or this is a PURGE request
-        if (call_user_func($this->canCache, $req) ||
-            $this->handlePurge($req, $event)
-        ) {
+        if (!call_user_func($this->canCache, $req)) {
             return;
         }
 
@@ -390,26 +372,6 @@ class CacheSubscriber implements SubscriberInterface
             $message->getProtocolVersion(),
             ClientInterface::VERSION
         ));
-    }
-
-    /**
-     * Handle request purging, and return true if this is a cache PURGE
-     */
-    private function handlePurge(RequestInterface $req, BeforeEvent $event)
-    {
-        static $purge = ['PUT' => 1, 'POST' => 1, 'DELETE' => 1, 'PATCH' => 1];
-
-        if ($req->getMethod() == 'PURGE') {
-            $this->storage->purge($req);
-            $event->intercept(new Response(200, [], 'purged'));
-            return true;
-        }
-
-        if ($this->autoPurge && isset($purge[$req->getMethod()])) {
-            $this->storage->purge($req);
-        }
-
-        return false;
     }
 
     private function canCacheResponse(ResponseInterface $response)
