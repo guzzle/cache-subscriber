@@ -223,9 +223,9 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
         $ttl = 0;
 
         if ($cacheControl = $response->getHeader('Cache-Control')) {
-            $stale = CacheSubscriber::getDirective($response, 'stale-if-error');
+            $stale = Utils::getDirective($response, 'stale-if-error');
             $ttl += $stale == true ? $ttl : $stale;
-            $ttl += CacheSubscriber::getDirective($response, 'max-age');
+            $ttl += Utils::getDirective($response, 'max-age');
         }
 
         return $ttl ?: $this->defaultTtl;

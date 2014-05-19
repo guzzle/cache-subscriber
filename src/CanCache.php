@@ -18,6 +18,6 @@ class CanCache
         }
 
         // Never cache requests when using no-store
-        return CacheSubscriber::getDirective($request, 'no-store') === null;
+        return Utils::getDirective($request, 'no-store') === null;
     }
 }

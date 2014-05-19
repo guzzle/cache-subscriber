@@ -28,7 +28,9 @@ class PurgeSubscriber implements SubscriberInterface
 
     /**
      * @param CacheStorageInterface $storage   Storage to modify if purging
-     * @param bool                  $autoPurge Purge resources when non-idempotent requests are sent to a resource
+     * @param bool                  $autoPurge Purge resources when
+     *                                         non-idempotent requests are sent
+     *                                         to a resource.
      */
     public function __construct($storage, $autoPurge = false)
     {

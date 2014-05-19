@@ -1,8 +1,6 @@
 <?php
 namespace GuzzleHttp\Subscriber\Cache;
 
-use GuzzleHttp\Exception\RequestException;
-use GuzzleHttp\Message\AbstractMessage;
 use GuzzleHttp\Message\MessageInterface;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Event\BeforeEvent;
@@ -29,9 +27,6 @@ use GuzzleHttp\Message\ResponseInterface;
  */
 class CacheSubscriber implements SubscriberInterface
 {
-    /** @var callable Cache revalidation strategy */
-    protected $revalidation;
-
     /** @var callable Determines if a request is cacheable */
     protected $canCache;
 
@@ -39,41 +34,18 @@ class CacheSubscriber implements SubscriberInterface
     protected $storage;
 
     /**
-     * @param array $options Array of options used to create the subscriber
-     *
-     *     - storage: (CacheStorageInterface) Adapter used to cache responses
-     *     - revalidate: callable|bool cache revalidation strategy. Set to
-     *       false to disable revalidation, or pass a callable to perform
-     *       custom revalidation. Omitting this value will utilize a default
-     *       revalidation strategy. The callable accepts a request and response,
-     *       and returns the response that should be used after revalidation.
-     *     - can_cache: callable used to determine if a request can be cached.
-     *       The callable accepts a request object and returns true or false if
-     *       the request can be cached.
-     *
-     * @throws \InvalidArgumentException if no cache is provided
+     * @param CacheStorageInterface $cache    Cache storage
+     * @param callable              $canCache Callable used to determine if a
+     *                                        request can be cached. Accepts a
+     *                                        RequestInterface and returns a
+     *                                        boolean value.
      */
-    public function __construct($options = [])
-    {
-        if (!isset($options['storage'])) {
-            throw new \InvalidArgumentException('storage is a required option');
-        }
-
-        $this->storage = $options['storage'];
-        $this->canCache = isset($options['can_cache'])
-            ? $options['can_cache']
-            : new CanCache();
-
-        if (!isset($options['revalidation'])) {
-            $this->revalidation = new DefaultRevalidation(
-                $this->storage,
-                $this->canCache
-            );
-        } elseif ($options['revalidation'] === false) {
-            $this->revalidation = function ($_, $res) { return $res; };
-        } else {
-            $this->revalidation = $options['revalidation'];
-        }
+    public function __construct(
+        CacheStorageInterface $cache,
+        callable $canCache
+    ) {
+        $this->storage = $cache;
+        $this->canCache = $canCache;
     }
 
     public function getEvents()
@@ -91,27 +63,26 @@ class CacheSubscriber implements SubscriberInterface
      */
     public function onBefore(BeforeEvent $event)
     {
-        $req = $event->getRequest();
-        $this->addViaHeader($req);
+        $request = $event->getRequest();
+        $this->addViaHeader($request);
 
-        if (!call_user_func($this->canCache, $req)) {
+        if (!$this->canCacheRequest($request)) {
             return;
         }
 
-        if (!($response = $this->storage->fetch($req))) {
+        if (!($response = $this->storage->fetch($request))) {
             return;
         }
 
-        $config = $req->getConfig();
-        $config['cache_lookup'] = true;
-        $response->setHeader('Age', self::getResponseAge($response));
+        $response->setHeader('Age', Utils::getResponseAge($response));
+        $valid = $this->validate($request, $response);
 
         // Validate that the response satisfies the request
-        if ($validated = $this->validate($req, $response)) {
-            if ($validated === $response) {
-                $config['cache_hit'] = true;
-            }
-            $event->intercept($validated);
+        if ($valid) {
+            $request->getConfig()->set('cache_lookup', 'HIT');
+            $event->intercept($response);
+        } else {
+            $request->getConfig()->set('cache_lookup', 'MISS');
         }
     }
 
@@ -144,118 +115,33 @@ class CacheSubscriber implements SubscriberInterface
             return;
         }
 
-        if (!($response = $this->storage->fetch($request))) {
-            return;
-        }
+        $response = $this->storage->fetch($request);
 
         // Intercept the failed response if possible
-        if ($this->validateFailed($request, $response)) {
+        if ($response && $this->validateFailed($request, $response)) {
             $request->getConfig()->set('cache_hit', 'error');
-            $response->setHeader('Age', self::getResponseAge($response));
+            $response->setHeader('Age', Utils::getResponseAge($response));
             $this->addResponseHeaders($request, $response);
             $event->intercept($response);
         }
-    }
-
-    /**
-     * Get a cache control directive from a message
-     *
-     * @param MessageInterface $message Message to retrieve
-     * @param string           $part    Cache directive to retrieve
-     *
-     * @return mixed|bool|null
-     */
-    public static function getDirective(MessageInterface $message, $part)
-    {
-        $parts = AbstractMessage::parseHeader($message, 'Cache-Control');
-
-        if (isset($parts[$part])) {
-            return $parts[$part];
-        } elseif (in_array($part, $parts)) {
-            return true;
-        } else {
-            return null;
-        }
-    }
-
-    /**
-     * Gets the age of a response in seconds.
-     *
-     * @param ResponseInterface $response
-     *
-     * @return int
-     */
-    public static function getResponseAge(ResponseInterface $response)
-    {
-        if ($response->hasHeader('Age')) {
-            return (int) $response->getHeader('Age');
-        }
-
-        $lastMod = strtotime($response->getHeader('Last-Modified') ?: 'now');
-
-        return time() - $lastMod;
-    }
-
-    /**
-     * Gets the number of seconds from the current time in which this response
-     * is still considered fresh.
-     *
-     * @param ResponseInterface $response
-     *
-     * @return int|null Returns the number of seconds
-     */
-    public static function getMaxAge(ResponseInterface $response)
-    {
-        $parts = AbstractMessage::parseHeader($response, 'Cache-Control');
-
-        if (isset($parts['s-maxage'])) {
-            return $parts['s-maxage'];
-        } elseif (isset($parts['max-age'])) {
-            return $parts['max-age'];
-        } elseif ($response->hasHeader('Expires')) {
-            return strtotime($response->getHeader('Expires') - time());
-        }
-
-        return null;
-    }
-
-    /**
-     * Get the freshness of the response by returning the difference of the
-     * maximum lifetime of the response and the age of the response.
-     *
-     * Freshness values less than 0 mean that the response is no longer fresh
-     * and is ABS(freshness) seconds expired. Freshness values of greater than
-     * zero is the number of seconds until the response is no longer fresh.
-     * A NULL result means that no freshness information is available.
-     *
-     * @param ResponseInterface $response Response to get freshness of
-     *
-     * @return int
-     */
-    public function getFreshness(ResponseInterface $response)
-    {
-        $maxAge = self::getMaxAge($response);
-        $age = self::getResponseAge($response);
-
-        return $maxAge && $age ? ($maxAge - $age) : null;
     }
 
     private function validate(
         RequestInterface $request,
         ResponseInterface $response
     ) {
-        $responseAge = self::getResponseAge($response);
+        $responseAge = Utils::getResponseAge($response);
 
         // Check the request's max-age header against the age of the response
-        if ($responseAge > self::getDirective($response, 'max-age')) {
+        if ($responseAge > Utils::getDirective($response, 'max-age')) {
             return false;
         }
 
         // Check the response's max-age header against the fresness level
-        $freshness = self::getFreshness($response);
+        $freshness = Utils::getFreshness($response);
         if ($freshness === null) {
-            $maxStale = self::getDirective($request, 'max-stale');
-            $maxAge = self::getDirective($response, 'max-age');
+            $maxStale = Utils::getDirective($request, 'max-stale');
+            $maxAge = Utils::getDirective($response, 'max-age');
             if ($maxStale !== null) {
                 if ($freshness < (-1 * $maxStale)) {
                     return false;
@@ -265,30 +151,22 @@ class CacheSubscriber implements SubscriberInterface
             }
         }
 
-        try {
-            return call_user_func($this->revalidation, $request, $response);
-        } catch (RequestException $e) {
-            if ($e->getRequest()) {
-                throw $e;
-            }
-            $request->getConfig()->set('cache.hit', 'error');
-            return $this->validateFailed($request, $response);
-        }
+        return true;
     }
 
     private function validateFailed(
         RequestInterface $request,
         ResponseInterface $response
     ) {
-        $req = self::getDirective($request, 'stale-if-error');
-        $res = self::getDirective($response, 'stale-if-error');
+        $req = Utils::getDirective($request, 'stale-if-error');
+        $res = Utils::getDirective($response, 'stale-if-error');
 
         if (!$req && !$res) {
             return false;
         }
 
-        $responseAge = self::getResponseAge($response);
-        $maxAge = self::getMaxAge($response);
+        $responseAge = Utils::getResponseAge($response);
+        $maxAge = Utils::getMaxAge($response);
 
         if (($req && $responseAge - $maxAge > $req) ||
             ($responseAge - $maxAge > $res)
@@ -296,7 +174,7 @@ class CacheSubscriber implements SubscriberInterface
             return false;
         }
 
-        return $response;
+        return true;
     }
 
     /**
@@ -311,56 +189,39 @@ class CacheSubscriber implements SubscriberInterface
     ) {
         $this->addViaHeader($response);
         $params = $request->getConfig();
-        $lookup = ($params['cache.lookup'] === true ? 'HIT' : 'MISS')
-            . ' from GuzzleCache';
+        $lookup = $params['cache_lookup'] . ' from GuzzleCache';
+        $this->addUniqueHeader($response, 'X-Cache-Lookup', $lookup);
 
-        if ($header = $response->getHeader('X-Cache-Lookup', true)) {
-            // Don't add duplicates
-            $values[] = $lookup;
-            $response->setHeader('X-Cache-Lookup', array_unique($values));
-        } else {
-            $response->setHeader('X-Cache-Lookup', $lookup);
-        }
-
-        if ($params['cache.hit'] === true) {
+        if ($params['cache_hit'] === true) {
             $xcache = 'HIT from GuzzleCache';
-        } elseif ($params['cache.hit'] == 'error') {
+        } elseif ($params['cache_hit'] == 'error') {
             $xcache = 'HIT_ERROR from GuzzleCache';
         } else {
             $xcache = 'MISS from GuzzleCache';
         }
 
-        if ($header = $response->getHeader('X-Cache', true)) {
-            $values[] = $xcache;
-            $response->setHeader('X-Cache', array_unique($values));
-        } else {
-            $response->setHeader('X-Cache', $xcache);
-        }
-
-        $this->addFreshnessWarnings($response, $params['cache.hit']);
+        $this->addUniqueHeader($response, 'X-Cache', $xcache);
+        $this->addFreshnessWarnings($response, $params['cache_hit']);
     }
 
-    private function addFreshnessWarnings(ResponseInterface $response, $hit)
+    private function addUniqueHeader(MessageInterface $msg, $header, $value)
     {
-        if (self::getFreshness($response) >= 0) {
-            return;
+        if (!$msg->hasHeader($header)) {
+            $msg->setHeader($header, $value);
+        } else {
+            $values = $msg->getHeader($header, true);
+            $values[] = $value;
+            $msg->setHeader($header, array_unique($values));
         }
+    }
 
-        $response->addHeader(
-            'Warning',
-            sprintf(
-                '110 GuzzleCache/%s "Response is stale"',
-                ClientInterface::VERSION
-            )
-        );
-
-        if ($hit === 'error') {
+    private function addFreshnessWarnings(ResponseInterface $response)
+    {
+        if (Utils::getFreshness($response) <= 0) {
+            $template = '%d GuzzleCache/' . ClientInterface::VERSION . ' "%s"';
             $response->addHeader(
                 'Warning',
-                sprintf(
-                    '111 GuzzleCache/%s "Revalidation failed"',
-                    ClientInterface::VERSION
-                )
+                sprintf($template, 110, 'Response is stale')
             );
         }
     }
@@ -374,32 +235,8 @@ class CacheSubscriber implements SubscriberInterface
         ));
     }
 
-    private function canCacheResponse(ResponseInterface $response)
+    private function canCacheRequest(RequestInterface $request)
     {
-        static $cacheCodes = [200, 203, 206, 300, 301, 410];
-
-        // Check if the response is cacheable based on the code
-        if (!in_array((int) $response->getStatusCode(), $cacheCodes)) {
-            return false;
-        }
-
-        // Make sure a valid body was returned and can be cached
-        $body = $response->getBody();
-        if (!$body || (!$body->isReadable() || !$body->isSeekable())) {
-            return false;
-        }
-
-        // Never cache no-store resources (this is a private cache, so private
-        // can be cached)
-        if (self::getDirective($response, 'no-store')) {
-            return false;
-        }
-
-        $freshness = self::getFreshness($response);
-
-        return $freshness === null ||
-            $freshness >= 0 ||
-            $response->hasHeader('ETag') ||
-            $response->hasHeader('Last-Modified');
+        return call_user_func($this->canCache, $request);
     }
 }
