@@ -121,7 +121,7 @@ class CacheStorage implements CacheStorageInterface
             $response = new Response($match[2], $match[1]);
             if ($match[3]) {
                 if ($body = $this->cache->fetch($match[3])) {
-                    $response->setBody($body);
+                    $response->setBody(Stream\create($body));
                 } else {
                     // The response is not valid because the body was somehow
                     // deleted

@@ -67,10 +67,12 @@ class CacheSubscriber implements SubscriberInterface
         $this->addViaHeader($request);
 
         if (!$this->canCacheRequest($request)) {
+            $this->cacheMiss($request);
             return;
         }
 
         if (!($response = $this->storage->fetch($request))) {
+            $this->cacheMiss($request);
             return;
         }
 
@@ -82,7 +84,7 @@ class CacheSubscriber implements SubscriberInterface
             $request->getConfig()->set('cache_lookup', 'HIT');
             $event->intercept($response);
         } else {
-            $request->getConfig()->set('cache_lookup', 'MISS');
+            $this->cacheMiss($request);
         }
     }
 
@@ -126,22 +128,28 @@ class CacheSubscriber implements SubscriberInterface
         }
     }
 
+    private function cacheMiss(RequestInterface $request)
+    {
+        $request->getConfig()->set('cache_lookup', 'MISS');
+    }
+
     private function validate(
         RequestInterface $request,
         ResponseInterface $response
     ) {
         $responseAge = Utils::getResponseAge($response);
+        $maxAge = Utils::getDirective($response, 'max-age');
 
         // Check the request's max-age header against the age of the response
-        if ($responseAge > Utils::getDirective($response, 'max-age')) {
+        if ($maxAge !== null && $responseAge > $maxAge) {
             return false;
         }
 
         // Check the response's max-age header against the fresness level
         $freshness = Utils::getFreshness($response);
+
         if ($freshness === null) {
             $maxStale = Utils::getDirective($request, 'max-stale');
-            $maxAge = Utils::getDirective($response, 'max-age');
             if ($maxStale !== null) {
                 if ($freshness < (-1 * $maxStale)) {
                     return false;
@@ -217,7 +225,9 @@ class CacheSubscriber implements SubscriberInterface
 
     private function addFreshnessWarnings(ResponseInterface $response)
     {
-        if (Utils::getFreshness($response) <= 0) {
+        $freshness = Utils::getFreshness($response);
+
+        if ($freshness !== null && $freshness <= 0) {
             $template = '%d GuzzleCache/' . ClientInterface::VERSION . ' "%s"';
             $response->addHeader(
                 'Warning',

@@ -23,13 +23,15 @@ class Utils
     {
         $parts = AbstractMessage::parseHeader($message, 'Cache-Control');
 
-        if (isset($parts[$part])) {
-            return $parts[$part];
-        } elseif (in_array($part, $parts)) {
-            return true;
-        } else {
-            return null;
+        foreach ($parts as $line) {
+            if (isset($line[$part])) {
+                return $line[$part];
+            } elseif (in_array($part, $line)) {
+                return true;
+            }
         }
+
+        return null;
     }
 
     /**
@@ -101,7 +103,7 @@ class Utils
      *
      * @return bool
      */
-    public function canCacheRequest(RequestInterface $request)
+    public static function canCacheRequest(RequestInterface $request)
     {
         $method = $request->getMethod();
 
@@ -110,7 +112,6 @@ class Utils
             return false;
         }
 
-        // Never cache requests when using no-store
         return self::getDirective($request, 'no-store') === null;
     }
 
