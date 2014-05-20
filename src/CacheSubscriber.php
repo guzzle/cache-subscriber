@@ -96,7 +96,7 @@ class CacheSubscriber implements SubscriberInterface
 
         // Cache the response if it can be cached and isn't already
         if (call_user_func($this->canCache, $request) &&
-            $this->canCacheResponse($response)
+            Utils::canCacheResponse($response)
         ) {
             $this->storage->cache($request, $response);
         }

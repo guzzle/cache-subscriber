@@ -8,14 +8,29 @@ use GuzzleHttp\Message\ResponseInterface;
 use GuzzleHttp\Message\Response;
 use GuzzleHttp\Stream\StreamInterface;
 use GuzzleHttp\Stream;
+use Doctrine\Common\Cache\Cache;
 
-abstract class AbstractCacheStorage implements CacheStorageInterface
+/**
+ * Default cache storage implementation.
+ */
+class CacheStorage implements CacheStorageInterface
 {
     /** @var string */
-    protected $keyPrefix;
+    private $keyPrefix;
 
     /** @var int Default cache TTL */
-    protected $defaultTtl;
+    private $defaultTtl;
+
+    /** @var Cache */
+    private $cache;
+
+    /**
+     * @param Cache $cache Cache backend
+     */
+    public function __construct(Cache $cache)
+    {
+        $this->cache = $cache;
+    }
 
     public function cache(
         RequestInterface $request,
@@ -32,7 +47,7 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
         if ($response->getBody() && $response->getBody()->getSize() > 0) {
             $body = $response->getBody();
             $bodyDigest = $this->getBodyKey($request->getUrl(), $body);
-            $this->saveCache($bodyDigest, (string) $body, $ttl);
+            $this->cache->save($bodyDigest, (string) $body, $ttl);
         }
 
         array_unshift($entries, [
@@ -43,13 +58,13 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
             $ctime + $ttl
         ]);
 
-        $this->saveCache($key, serialize($entries));
+        $this->cache->save($key, serialize($entries));
     }
 
     public function delete(RequestInterface $request)
     {
         $key = $this->getCacheKey($request);
-        $entries = $this->getCache($key);
+        $entries = $this->cache->fetch($key);
 
         if (!$entries) {
             return;
@@ -58,11 +73,11 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
         // Delete each cached body
         foreach (unserialize($entries) as $entry) {
             if ($entry[3]) {
-                $this->deleteCache($entry[3]);
+                $this->cache->delete($entry[3]);
             }
         }
 
-        $this->deleteCache($key);
+        $this->cache->delete($key);
     }
 
     public function purge($url)
@@ -75,13 +90,13 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
     public function fetch(RequestInterface $request)
     {
         $key = $this->getCacheKey($request);
-        $entries = $this->getCache($key);
+        $entries = $this->cache->fetch($key);
 
         if (!$entries) {
             return null;
         }
 
-        $match = null;
+        $match = $matchIndex = null;
         $headers = $this->persistHeaders($request);
         $entries = unserialize($entries);
 
@@ -89,6 +104,7 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
             $vary = isset($entry[1]['vary']) ? $entry[1]['vary'] : '';
             if ($this->requestsMatch($vary, $headers, $entry[0])) {
                 $match = $entry;
+                $matchIndex = $index;
                 break;
             }
         }
@@ -104,7 +120,7 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
         } else {
             $response = new Response($match[2], $match[1]);
             if ($match[3]) {
-                if ($body = $this->getCache($match[3])) {
+                if ($body = $this->cache->fetch($match[3])) {
                     $response->setBody($body);
                 } else {
                     // The response is not valid because the body was somehow
@@ -116,11 +132,11 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
 
         if ($response === -1) {
             // Remove the entry from the metadata and update the cache
-            unset($entries[$index]);
+            unset($entries[$matchIndex]);
             if ($entries) {
-                $this->saveCache($key, serialize($entries));
+                $this->cache->save($key, serialize($entries));
             } else {
-                $this->deleteCache($key);
+                $this->cache->delete($key);
             }
             return null;
         }
@@ -135,7 +151,7 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
      *
      * @return string
      */
-    protected function getCacheKey(RequestInterface $request)
+    private function getCacheKey(RequestInterface $request)
     {
         return $this->keyPrefix
             . md5($request->getMethod() . ' ' . $request->getUrl());
@@ -149,14 +165,10 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
      *
      * @return string
      */
-    protected function getBodyKey($url, StreamInterface $body)
+    private function getBodyKey($url, StreamInterface $body)
     {
         return $this->keyPrefix . md5($url) . Stream\hash($body, 'md5');
     }
-
-    abstract protected function getCache($key);
-    abstract protected function saveCache($key, $value, $ttl = null);
-    abstract protected function deleteCache($key);
 
     /**
      * Determines whether two Request HTTP header sets are non-varying
@@ -238,7 +250,7 @@ abstract class AbstractCacheStorage implements CacheStorageInterface
         $persistedRequest
     ) {
         $entries = [];
-        $manifest = $this->getCache($key);
+        $manifest = $this->cache->fetch($key);
 
         if (!$manifest) {
             return $entries;

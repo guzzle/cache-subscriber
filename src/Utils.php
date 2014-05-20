@@ -3,6 +3,7 @@ namespace GuzzleHttp\Subscriber\Cache;
 
 use GuzzleHttp\Message\AbstractMessage;
 use GuzzleHttp\Message\MessageInterface;
+use GuzzleHttp\Message\RequestInterface;
 use GuzzleHttp\Message\ResponseInterface;
 
 /**
@@ -91,6 +92,26 @@ class Utils
         $age = self::getResponseAge($response);
 
         return $maxAge && $age ? ($maxAge - $age) : null;
+    }
+
+    /**
+     * Default function used to determine if a request can be cached.
+     *
+     * @param RequestInterface $request Request to check
+     *
+     * @return bool
+     */
+    public function canCacheRequest(RequestInterface $request)
+    {
+        $method = $request->getMethod();
+
+        // Only GET and HEAD requests can be cached
+        if ($method !== 'GET' && $method !== 'HEAD') {
+            return false;
+        }
+
+        // Never cache requests when using no-store
+        return self::getDirective($request, 'no-store') === null;
     }
 
     /**

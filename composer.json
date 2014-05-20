@@ -13,7 +13,8 @@
     ],
     "require": {
         "php": ">=5.4.0",
-        "guzzlehttp/guzzle": "4.*"
+        "guzzlehttp/guzzle": "4.*",
+        "doctrine/cache": "~1.3.0"
     },
     "autoload": {
         "psr-4": { "GuzzleHttp\\Subscriber\\Cache\\": "src" }
