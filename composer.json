@@ -1,5 +1,5 @@
 {
-    "name": "guzzle/cache-subscriber",
+    "name": "guzzlehttp/cache-subscriber",
     "description": "Guzzle HTTP cache subscriber",
     "homepage": "http://guzzlephp.org/",
     "keywords": ["cache", "guzzle"],
