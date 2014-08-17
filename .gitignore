@@ -4,3 +4,4 @@ coverage
 phpunit.xml
 composer.lock
 vendor/
+build/artifacts

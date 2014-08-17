@@ -1,12 +1,11 @@
 <?php
-
 namespace GuzzleHttp\Subscriber\Cache;
 
 use GuzzleHttp\Message\RequestInterface;
 use GuzzleHttp\Message\ResponseInterface;
 
 /**
- * Interface used to cache HTTP requests
+ * Interface used to cache HTTP responses.
  */
 interface CacheStorageInterface
 {
@@ -25,7 +24,10 @@ interface CacheStorageInterface
      * @param RequestInterface  $request  Request being cached
      * @param ResponseInterface $response Response to cache
      */
-    public function cache(RequestInterface $request, ResponseInterface $response);
+    public function cache(
+        RequestInterface $request,
+        ResponseInterface $response
+    );
 
     /**
      * Deletes cache entries that match a request
