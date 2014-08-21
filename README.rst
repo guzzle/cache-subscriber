@@ -88,7 +88,7 @@ Add the following to your composer.json:
 
     {
         "require": {
-            "guzzlehttp/cache-subscriber": "0.1-dev"
+            "guzzlehttp/cache-subscriber": "0.1.*@dev"
         }
     }
 
