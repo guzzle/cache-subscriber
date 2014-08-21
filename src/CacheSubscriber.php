@@ -1,6 +1,7 @@
 <?php
 namespace GuzzleHttp\Subscriber\Cache;
 
+use GuzzleHttp\Event\HasEmitterInterface;
 use GuzzleHttp\Message\MessageInterface;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Event\BeforeEvent;
@@ -10,6 +11,7 @@ use GuzzleHttp\Event\RequestEvents;
 use GuzzleHttp\Event\SubscriberInterface;
 use GuzzleHttp\Message\RequestInterface;
 use GuzzleHttp\Message\ResponseInterface;
+use Doctrine\Common\Cache\ArrayCache;
 
 /**
  * Plugin to enable the caching of GET and HEAD requests.
@@ -46,6 +48,57 @@ class CacheSubscriber implements SubscriberInterface
     ) {
         $this->storage = $cache;
         $this->canCache = $canCache;
+    }
+
+    /**
+     * Helper method used to easily attach a cache to a request or client.
+     *
+     * This method accepts an array of options that are used to control the
+     * caching behavior:
+     *
+     * - storage: An optional GuzzleHttp\Subscriber\Cache\CacheStorageInterface.
+     *   If no value is not provided, an in-memory array cache will be used.
+     * - validate: Boolean value that determines if cached response are ever
+     *   validated against the origin server. Defaults to true but can be
+     *   disabled by passing false.
+     * - purge: Boolean value that determines if cached responses are purged
+     *   when non-idempotent requests are sent to their URI. Defaults to true
+     *   but can be disabled by passing false.
+     * - can_cache: An optional callable used to determine if a request can be
+     *   cached. The callable accepts a RequestInterface and returns a boolean
+     *   value. If no value is provided, the default behavior is utilized.
+     *
+     * @param HasEmitterInterface $subject Client or request to attach to,
+     * @param array               $options Options used to control the cache.
+     */
+    public static function attach(
+        HasEmitterInterface $subject,
+        array $options = []
+    ) {
+        if (!isset($options['storage'])) {
+            $options['storage'] = new CacheStorage(new ArrayCache());
+        }
+
+        if (!isset($options['can_cache'])) {
+            $options['can_cache'] = [
+                'GuzzleHttp\Subscriber\Cache\Utils',
+                'canCacheRequest'
+            ];
+        }
+
+        $emitter = $subject->getEmitter();
+        $emitter->attach(new self($options['storage'], $options['can_cache']));
+
+        if (!isset($options['validate']) || $options['validate'] === true) {
+            $emitter->attach(new ValidationSubscriber(
+                $options['storage'],
+                $options['can_cache'])
+            );
+        }
+
+        if (!isset($options['purge']) || $options['purge'] === true) {
+            $emitter->attach(new PurgeSubscriber($options['storage']));
+        }
     }
 
     public function getEvents()
@@ -137,29 +190,13 @@ class CacheSubscriber implements SubscriberInterface
         RequestInterface $request,
         ResponseInterface $response
     ) {
-        $responseAge = Utils::getResponseAge($response);
-        $maxAge = Utils::getDirective($response, 'max-age');
-
-        // Check the request's max-age header against the age of the response
-        if ($maxAge !== null && $responseAge > $maxAge) {
-            return false;
+        // Revalidation is handled in another subscriber and can be optionally
+        // enabled/disabled.
+        if (Utils::getDirective($response, 'must-revalidate')) {
+            return true;
         }
 
-        // Check the response's max-age header against the fresness level
-        $freshness = Utils::getFreshness($response);
-
-        if ($freshness === null) {
-            $maxStale = Utils::getDirective($request, 'max-stale');
-            if ($maxStale !== null) {
-                if ($freshness < (-1 * $maxStale)) {
-                    return false;
-                }
-            } elseif ($maxAge !== null && $responseAge > $maxAge) {
-                return false;
-            }
-        }
-
-        return true;
+        return Utils::isResponseValid($request, $response);
     }
 
     private function validateFailed(
@@ -247,6 +284,7 @@ class CacheSubscriber implements SubscriberInterface
 
     private function canCacheRequest(RequestInterface $request)
     {
-        return call_user_func($this->canCache, $request);
+        return !$request->getConfig()->get('cache.disable')
+            && call_user_func($this->canCache, $request);
     }
 }

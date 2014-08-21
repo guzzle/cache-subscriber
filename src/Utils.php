@@ -47,9 +47,9 @@ class Utils
             return (int) $response->getHeader('Age');
         }
 
-        $lastMod = strtotime($response->getHeader('Last-Modified') ?: 'now');
+        $date = strtotime($response->getHeader('Date') ?: 'now');
 
-        return time() - $lastMod;
+        return time() - $date;
     }
 
     /**
@@ -112,6 +112,11 @@ class Utils
             return false;
         }
 
+        // Don't fool with Range requests for now
+        if ($request->hasHeader('Range')) {
+            return false;
+        }
+
         return self::getDirective($request, 'no-store') === null;
     }
 
@@ -124,7 +129,7 @@ class Utils
      */
     public static function canCacheResponse(ResponseInterface $response)
     {
-        static $cacheCodes = [200, 203, 206, 300, 301, 410];
+        static $cacheCodes = [200, 203, 300, 301, 410];
 
         // Check if the response is cacheable based on the code
         if (!in_array((int) $response->getStatusCode(), $cacheCodes)) {
@@ -133,7 +138,7 @@ class Utils
 
         // Make sure a valid body was returned and can be cached
         $body = $response->getBody();
-        if (!$body || (!$body->isReadable() || !$body->isSeekable())) {
+        if ($body && (!$body->isReadable() || !$body->isSeekable())) {
             return false;
         }
 
@@ -143,11 +148,45 @@ class Utils
             return false;
         }
 
+        // Don't fool with Content-Range requests for now
+        if ($response->hasHeader('Content-Range')) {
+            return false;
+        }
+
         $freshness = self::getFreshness($response);
 
-        return $freshness === null ||
-            $freshness >= 0 ||
-            $response->hasHeader('ETag') ||
-            $response->hasHeader('Last-Modified');
+        return $freshness === null                    // No freshness info.
+            || $freshness >= 0                        // It's fresh
+            || $response->hasHeader('ETag')           // Can validate
+            || $response->hasHeader('Last-Modified'); // Can validate
+    }
+
+    public static function isResponseValid(
+        RequestInterface $request,
+        ResponseInterface $response
+    ) {
+        $responseAge = Utils::getResponseAge($response);
+        $maxAge = Utils::getDirective($response, 'max-age');
+
+        // Check the request's max-age header against the age of the response
+        if ($maxAge !== null && $responseAge > $maxAge) {
+            return false;
+        }
+
+        // Check the response's max-age header against the freshness level
+        $freshness = Utils::getFreshness($response);
+
+        if ($freshness !== null) {
+            $maxStale = Utils::getDirective($request, 'max-stale');
+            if ($maxStale !== null) {
+                if ($freshness < (-1 * $maxStale)) {
+                    return false;
+                }
+            } elseif ($maxAge !== null && $responseAge > $maxAge) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

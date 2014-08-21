@@ -4,17 +4,12 @@ namespace GuzzleHttp\Subscriber\Cache;
 use GuzzleHttp\Event\BeforeEvent;
 use GuzzleHttp\Event\RequestEvents;
 use GuzzleHttp\Event\SubscriberInterface;
-use GuzzleHttp\Message\Response;
 
 /**
- * Listens for PURGE requests and purges a URL when a non-idempotent request
- * is made.
+ * Automatically purges a URL when a non-idempotent request is made to it.
  */
 class PurgeSubscriber implements SubscriberInterface
 {
-    /** @var bool */
-    private $autoPurge;
-
     /** @var CacheStorageInterface */
     private $storage;
 
@@ -27,15 +22,11 @@ class PurgeSubscriber implements SubscriberInterface
     ];
 
     /**
-     * @param CacheStorageInterface $storage   Storage to modify if purging
-     * @param bool                  $autoPurge Purge resources when
-     *                                         non-idempotent requests are sent
-     *                                         to a resource.
+     * @param CacheStorageInterface $storage Storage to modify if purging
      */
-    public function __construct($storage, $autoPurge = false)
+    public function __construct($storage)
     {
         $this->storage = $storage;
-        $this->autoPurge = $autoPurge;
     }
 
     public function getEvents()
@@ -46,13 +37,9 @@ class PurgeSubscriber implements SubscriberInterface
     public function onBefore(BeforeEvent $event)
     {
         $request = $event->getRequest();
-        $method = $request->getMethod();
 
-        if ($this->autoPurge && isset(self::$purgeMethods[$method])) {
+        if (isset(self::$purgeMethods[$request->getMethod()])) {
             $this->storage->purge($request);
-        } elseif ($method === 'PURGE') {
-            $this->storage->purge($request);
-            $event->intercept(new Response(200, [], 'purged'));
         }
     }
 }
