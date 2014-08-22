@@ -117,7 +117,6 @@ class CacheSubscriber implements SubscriberInterface
     public function onBefore(BeforeEvent $event)
     {
         $request = $event->getRequest();
-        $this->addViaHeader($request);
 
         if (!$this->canCacheRequest($request)) {
             $this->cacheMiss($request);
@@ -150,8 +149,9 @@ class CacheSubscriber implements SubscriberInterface
         $response = $event->getResponse();
 
         // Cache the response if it can be cached and isn't already
-        if (call_user_func($this->canCache, $request) &&
-            Utils::canCacheResponse($response)
+        if ($request->getConfig()->get('cache_lookup') === 'MISS'
+            && call_user_func($this->canCache, $request)
+            && Utils::canCacheResponse($response)
         ) {
             $this->storage->cache($request, $response);
         }
@@ -190,7 +190,7 @@ class CacheSubscriber implements SubscriberInterface
         RequestInterface $request,
         ResponseInterface $response
     ) {
-        // Revalidation is handled in another subscriber and can be optionally
+        // Validation is handled in another subscriber and can be optionally
         // enabled/disabled.
         if (Utils::getDirective($response, 'must-revalidate')) {
             return true;
@@ -222,69 +222,39 @@ class CacheSubscriber implements SubscriberInterface
         return true;
     }
 
-    /**
-     * Add the plugin's headers to a response
-     *
-     * @param RequestInterface  $request  Request
-     * @param ResponseInterface $response Response to add headers to
-     */
+    private function canCacheRequest(RequestInterface $request)
+    {
+        return !$request->getConfig()->get('cache.disable')
+        && call_user_func($this->canCache, $request);
+    }
+
     private function addResponseHeaders(
         RequestInterface $request,
         ResponseInterface $response
     ) {
-        $this->addViaHeader($response);
         $params = $request->getConfig();
         $lookup = $params['cache_lookup'] . ' from GuzzleCache';
-        $this->addUniqueHeader($response, 'X-Cache-Lookup', $lookup);
+        $response->addHeader('X-Cache-Lookup', $lookup);
 
         if ($params['cache_hit'] === true) {
-            $xcache = 'HIT from GuzzleCache';
+            $response->addHeader('X-Cache', 'HIT from GuzzleCache');
         } elseif ($params['cache_hit'] == 'error') {
-            $xcache = 'HIT_ERROR from GuzzleCache';
+            $response->addHeader('X-Cache', 'HIT_ERROR from GuzzleCache');
         } else {
-            $xcache = 'MISS from GuzzleCache';
+            $response->addHeader('X-Cache', 'MISS from GuzzleCache');
         }
 
-        $this->addUniqueHeader($response, 'X-Cache', $xcache);
-        $this->addFreshnessWarnings($response, $params['cache_hit']);
-    }
-
-    private function addUniqueHeader(MessageInterface $msg, $header, $value)
-    {
-        if (!$msg->hasHeader($header)) {
-            $msg->setHeader($header, $value);
-        } else {
-            $values = $msg->getHeader($header, true);
-            $values[] = $value;
-            $msg->setHeader($header, array_unique($values));
-        }
-    }
-
-    private function addFreshnessWarnings(ResponseInterface $response)
-    {
         $freshness = Utils::getFreshness($response);
 
         if ($freshness !== null && $freshness <= 0) {
-            $template = '%d GuzzleCache/' . ClientInterface::VERSION . ' "%s"';
             $response->addHeader(
                 'Warning',
-                sprintf($template, 110, 'Response is stale')
+                sprintf(
+                    '%d GuzzleCache/' . ClientInterface::VERSION . ' "%s"',
+                    110,
+                    'Response is stale'
+                )
             );
         }
-    }
-
-    private function addViaHeader(MessageInterface $message)
-    {
-        $message->addHeader('Via', sprintf(
-            '%s GuzzleCache/%s',
-            $message->getProtocolVersion(),
-            ClientInterface::VERSION
-        ));
-    }
-
-    private function canCacheRequest(RequestInterface $request)
-    {
-        return !$request->getConfig()->get('cache.disable')
-            && call_user_func($this->canCache, $request);
     }
 }
