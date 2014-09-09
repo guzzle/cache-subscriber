@@ -134,6 +134,7 @@ class CacheSubscriber implements SubscriberInterface
         // Validate that the response satisfies the request
         if ($valid) {
             $request->getConfig()->set('cache_lookup', 'HIT');
+            $request->getConfig()->set('cache_hit', true);
             $event->intercept($response);
         } else {
             $this->cacheMiss($request);
