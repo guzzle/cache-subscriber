@@ -69,7 +69,7 @@ class Utils
         } elseif (isset($parts['max-age'])) {
             return $parts['max-age'];
         } elseif ($response->hasHeader('Expires')) {
-            return strtotime($response->getHeader('Expires') - time());
+            return strtotime($response->getHeader('Expires')) - time();
         }
 
         return null;
