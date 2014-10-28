@@ -8,6 +8,7 @@ use GuzzleHttp\Message\ResponseInterface;
 use GuzzleHttp\Message\Response;
 use GuzzleHttp\Stream\StreamInterface;
 use GuzzleHttp\Stream;
+use GuzzleHttp\Stream\Utils;
 use Doctrine\Common\Cache\Cache;
 
 /**
@@ -121,7 +122,7 @@ class CacheStorage implements CacheStorageInterface
             $response = new Response($match[2], $match[1]);
             if ($match[3]) {
                 if ($body = $this->cache->fetch($match[3])) {
-                    $response->setBody(Stream\create($body));
+                    $response->setBody(Utils::create($body));
                 } else {
                     // The response is not valid because the body was somehow
                     // deleted
@@ -167,7 +168,7 @@ class CacheStorage implements CacheStorageInterface
      */
     private function getBodyKey($url, StreamInterface $body)
     {
-        return $this->keyPrefix . md5($url) . Stream\hash($body, 'md5');
+        return $this->keyPrefix . md5($url) . Utils::hash($body, 'md5');
     }
 
     /**
