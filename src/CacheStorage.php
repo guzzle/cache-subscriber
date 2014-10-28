@@ -121,7 +121,7 @@ class CacheStorage implements CacheStorageInterface
             $response = new Response($match[2], $match[1]);
             if ($match[3]) {
                 if ($body = $this->cache->fetch($match[3])) {
-                    $response->setBody(Stream\create($body));
+                    $response->setBody(Stream\Utils::create($body));
                 } else {
                     // The response is not valid because the body was somehow
                     // deleted
@@ -142,6 +142,18 @@ class CacheStorage implements CacheStorageInterface
         }
 
         return $response;
+    }
+
+    /**
+     * Set the cache key prefix
+     *
+     * @param string $name
+     *
+     * @return void
+     */
+    public function setPrefix($name)
+    {
+        $this->keyPrefix = $name;
     }
 
     /**
@@ -167,7 +179,7 @@ class CacheStorage implements CacheStorageInterface
      */
     private function getBodyKey($url, StreamInterface $body)
     {
-        return $this->keyPrefix . md5($url) . Stream\hash($body, 'md5');
+        return $this->keyPrefix . md5($url) . Stream\Utils::hash($body, 'md5');
     }
 
     /**
