@@ -145,6 +145,18 @@ class CacheStorage implements CacheStorageInterface
     }
 
     /**
+     * Set the cache key prefix
+     *
+     * @param string $name
+     *
+     * @return void
+     */
+    public function setPrefix($name)
+    {
+        $this->keyPrefix = $name;
+    }
+
+    /**
      * Hash a request URL into a string that returns cache metadata
      *
      * @param RequestInterface $request
