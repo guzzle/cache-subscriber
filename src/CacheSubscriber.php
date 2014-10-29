@@ -2,7 +2,6 @@
 namespace GuzzleHttp\Subscriber\Cache;
 
 use GuzzleHttp\Event\HasEmitterInterface;
-use GuzzleHttp\Message\MessageInterface;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Event\BeforeEvent;
 use GuzzleHttp\Event\CompleteEvent;
@@ -70,6 +69,10 @@ class CacheSubscriber implements SubscriberInterface
      *
      * @param HasEmitterInterface $subject Client or request to attach to,
      * @param array               $options Options used to control the cache.
+     *
+     * @return array Returns an associative array containing a 'subscriber' key
+     *               that holds the created CacheSubscriber, and a 'storage'
+     *               key that contains the cache storage used by the subscriber.
      */
     public static function attach(
         HasEmitterInterface $subject,
@@ -87,7 +90,8 @@ class CacheSubscriber implements SubscriberInterface
         }
 
         $emitter = $subject->getEmitter();
-        $emitter->attach(new self($options['storage'], $options['can_cache']));
+        $cache = new self($options['storage'], $options['can_cache']);
+        $emitter->attach($cache);
 
         if (!isset($options['validate']) || $options['validate'] === true) {
             $emitter->attach(new ValidationSubscriber(
@@ -99,6 +103,8 @@ class CacheSubscriber implements SubscriberInterface
         if (!isset($options['purge']) || $options['purge'] === true) {
             $emitter->attach(new PurgeSubscriber($options['storage']));
         }
+
+        return ['subscriber' => $cache, 'storage' => $options['storage']];
     }
 
     public function getEvents()

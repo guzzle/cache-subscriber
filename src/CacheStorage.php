@@ -25,11 +25,13 @@ class CacheStorage implements CacheStorageInterface
     private $cache;
 
     /**
-     * @param Cache $cache Cache backend
+     * @param Cache  $cache     Cache backend.
+     * @param string $keyPrefix Key prefix to add to each key.
      */
-    public function __construct(Cache $cache)
+    public function __construct(Cache $cache, $keyPrefix = null)
     {
         $this->cache = $cache;
+        $this->keyPrefix = $keyPrefix;
     }
 
     public function cache(
@@ -142,18 +144,6 @@ class CacheStorage implements CacheStorageInterface
         }
 
         return $response;
-    }
-
-    /**
-     * Set the cache key prefix
-     *
-     * @param string $name
-     *
-     * @return void
-     */
-    public function setPrefix($name)
-    {
-        $this->keyPrefix = $name;
     }
 
     /**
