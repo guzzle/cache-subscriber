@@ -1,6 +1,7 @@
 <?php
 namespace GuzzleHttp\Subscriber\Cache;
 
+use GuzzleHttp\Message\AbstractMessage;
 use GuzzleHttp\Message\MessageInterface;
 use GuzzleHttp\Message\Request;
 use GuzzleHttp\Message\RequestInterface;
@@ -40,10 +41,15 @@ class CacheStorage implements CacheStorageInterface
     ) {
         $ctime = time();
         $ttl = $this->getTtl($response);
-        $key = $this->getCacheKey($request);
+        $key = $this->getCacheKey($request, $this->normalizeVary($response));
         $headers = $this->persistHeaders($request);
         $entries = $this->getManifestEntries($key, $ctime, $response, $headers);
         $bodyDigest = null;
+
+        // Persist the Vary response header.
+        if ($response->hasHeader('vary')) {
+            $this->cacheVary($request, $response);
+        }
 
         // Persist the response body if needed
         if ($response->getBody() && $response->getBody()->getSize() > 0) {
@@ -65,7 +71,8 @@ class CacheStorage implements CacheStorageInterface
 
     public function delete(RequestInterface $request)
     {
-        $key = $this->getCacheKey($request);
+        $vary = $this->fetchVary($request);
+        $key = $this->getCacheKey($request, $vary);
         $entries = $this->cache->fetch($key);
 
         if (!$entries) {
@@ -79,6 +86,9 @@ class CacheStorage implements CacheStorageInterface
             }
         }
 
+        // Delete any cached Vary header responses.
+        $this->deleteVary($request);
+
         $this->cache->delete($key);
     }
 
@@ -91,7 +101,12 @@ class CacheStorage implements CacheStorageInterface
 
     public function fetch(RequestInterface $request)
     {
-        $key = $this->getCacheKey($request);
+        $vary = $this->fetchVary($request);
+        if ($vary) {
+            $key = $this->getCacheKey($request, $vary);
+        } else {
+            $key = $this->getCacheKey($request);
+        }
         $entries = $this->cache->fetch($key);
 
         if (!$entries) {
@@ -149,14 +164,24 @@ class CacheStorage implements CacheStorageInterface
     /**
      * Hash a request URL into a string that returns cache metadata
      *
-     * @param RequestInterface $request
+     * @param RequestInterface $request The Request to generate the cache key
+     *                                  for.
+     * @param array            $vary    (optional) An array of headers to vary
+     *                                  the cache key by.
      *
      * @return string
      */
-    private function getCacheKey(RequestInterface $request)
+    private function getCacheKey(RequestInterface $request, array $vary = array())
     {
-        return $this->keyPrefix
-            . md5($request->getMethod() . ' ' . $request->getUrl());
+        $key = $request->getMethod() . ' ' . $request->getUrl();
+
+        // If Vary headers have been passed in, fetch each header and add it to
+        // the cache key.
+        foreach ($vary as $header) {
+            $key .= " $header: " . $request->getHeader($header);
+        }
+
+        return $this->keyPrefix . md5($key);
     }
 
     /**
@@ -277,5 +302,80 @@ class CacheStorage implements CacheStorageInterface
         }
 
         return $entries;
+    }
+
+    /**
+     * Return a sorted list of Vary headers.
+     *
+     * While headers are case-insensitive, header values are not. We can only
+     * normalize the order of headers to combine cache entries.
+     *
+     * @param ResponseInterface $response The Response with Vary headers.
+     *
+     * @return array An array of sorted headers.
+     */
+    private function normalizeVary(ResponseInterface $response)
+    {
+        $parts = AbstractMessage::normalizeHeader($response, 'vary');
+        sort($parts);
+        return $parts;
+    }
+
+    /**
+     * Cache the Vary headers from a response.
+     *
+     * @param RequestInterface  $request  The Request that generated the Vary
+     *                                    headers.
+     * @param ResponseInterface $response The Response with Vary headers.
+     */
+    private function cacheVary(
+        RequestInterface $request,
+        ResponseInterface $response
+    ) {
+        $key = $this->getVaryKey($request);
+        $this->cache->save($key, $this->normalizeVary($response), $this->getTtl($response));
+    }
+
+    /**
+     * Fetch the Vary headers associated with a request, if they exist.
+     *
+     * Only responses, and not requests, contain Vary headers. However, we need
+     * to be able to determine what Vary headers were set for a given URL and
+     * request method on a future request.
+     *
+     * @param RequestInterface $request The Request to fetch headers for.
+     *
+     * @return array An array of headers.
+     */
+    private function fetchVary(RequestInterface $request)
+    {
+        $key = $this->getVaryKey($request);
+
+        return (array) $this->cache->fetch($key);
+    }
+
+    /**
+     * Delete the headers associated with a Vary request.
+     *
+     * @param RequestInterface $request The Request to delete headers for.
+     */
+    private function deleteVary(RequestInterface $request)
+    {
+        $key = $this->getVaryKey($request);
+        $this->cache->delete($key);
+    }
+
+    /**
+     * Get the cache key for Vary headers.
+     *
+     * @param RequestInterface $request The Request to fetch the key for.
+     *
+     * @return string The generated key.
+     */
+    private function getVaryKey(RequestInterface $request)
+    {
+        $key = $this->keyPrefix . md5('vary ' . $this->getCacheKey($request));
+
+        return $key;
     }
 }
