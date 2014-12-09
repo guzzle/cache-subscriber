@@ -26,13 +26,15 @@ class CacheStorage implements CacheStorageInterface
     private $cache;
 
     /**
-     * @param Cache  $cache     Cache backend.
-     * @param string $keyPrefix Key prefix to add to each key.
+     * @param Cache  $cache      Cache backend.
+     * @param string $keyPrefix  (optional) Key prefix to add to each key.
+     * @param int    $defaultTtl (optional) The default TTL to set, in seconds.
      */
-    public function __construct(Cache $cache, $keyPrefix = null)
+    public function __construct(Cache $cache, $keyPrefix = null, $defaultTtl = 0)
     {
         $this->cache = $cache;
         $this->keyPrefix = $keyPrefix;
+        $this->defaultTtl = $defaultTtl;
     }
 
     public function cache(
