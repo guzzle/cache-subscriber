@@ -259,14 +259,29 @@ class CacheStorage implements CacheStorageInterface
         return $headers;
     }
 
+    /**
+     * Return the TTL to use when caching a Response.
+     *
+     * @param ResponseInterface $response The response being cached.
+     *
+     * @return int The TTL in seconds.
+     */
     private function getTtl(ResponseInterface $response)
     {
         $ttl = 0;
 
         if ($cacheControl = $response->getHeader('Cache-Control')) {
+            $maxAge = Utils::getDirective($response, 'max-age');
+            if (is_numeric($maxAge)) {
+                $ttl += $maxAge;
+            }
+
+            // According to RFC5861 stale headers are *in addition* to any
+            // max-age values.
             $stale = Utils::getDirective($response, 'stale-if-error');
-            $ttl += $stale == true ? $ttl : $stale;
-            $ttl += Utils::getDirective($response, 'max-age');
+            if (is_numeric($stale)) {
+                $ttl += $stale;
+            }
         }
 
         return $ttl ?: $this->defaultTtl;
