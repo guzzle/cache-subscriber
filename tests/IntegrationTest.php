@@ -140,6 +140,40 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
         }
     }
 
+    public function testCachesResponsesForWithoutVaryHeader()
+    {
+        $now = $this->date();
+
+        Server::enqueue(
+            [
+                new Response(
+                    200, [
+                    'Content-type' => 'text/html',
+                    'Date' => $now,
+                    'Cache-Control' => 'public, s-maxage=1000, max-age=1000, must-revalidate',
+                    'Last-Modified' => $now,
+                ], Stream::factory()
+                ),
+                new Response(
+                    200, [
+                    'Content-type' => 'text/html',
+                    'Date' => $now,
+                    'Cache-Control' => 'public, s-maxage=1000, max-age=1000, must-revalidate',
+                    'Last-Modified' => $now,
+                    ], Stream::factory()
+                ),
+            ]
+        );
+
+        $client = $this->setupClient();
+
+        $response1 = $client->get('/foo');
+        $this->assertEquals(200, $response1->getStatusCode());
+        $response2 = $client->get('/foo');
+        $this->assertEquals(200, $response2->getStatusCode());
+        $this->assertEquals('HIT from GuzzleCache', $response2->getHeader('X-Cache'));
+    }
+
     /**
      * Test that requests varying on both Accept and User-Agent properly split
      * different User-Agents into different cache items.

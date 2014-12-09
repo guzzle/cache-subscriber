@@ -367,8 +367,9 @@ class CacheStorage implements CacheStorageInterface
     private function fetchVary(RequestInterface $request)
     {
         $key = $this->getVaryKey($request);
+        $varyHeaders = $this->cache->fetch($key);
 
-        return (array) $this->cache->fetch($key);
+        return is_array($varyHeaders) ? $varyHeaders : [];
     }
 
     /**
