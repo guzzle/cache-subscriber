@@ -5,6 +5,7 @@ require_once __DIR__ . '/../vendor/guzzlehttp/ringphp/tests/Client/Server.php';
 require_once __DIR__ . '/../vendor/guzzlehttp/guzzle/tests/Server.php';
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Message\RequestInterface;
 use GuzzleHttp\Message\Response;
 use GuzzleHttp\Stream\Stream;
 use GuzzleHttp\Subscriber\Cache\CacheSubscriber;
@@ -325,6 +326,43 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
             'Test/2.0 request.',
             json_decode($this->getResponseBody($response))->body
         );
+    }
+
+    /**
+     * Test that the can_cache option can modify cache behaviour.
+     */
+    public function testCanCache()
+    {
+        $now = gmdate("D, d M Y H:i:s");
+
+        // Return an uncacheable response, that is then cached by can_cache
+        // returning TRUE.
+        Server::enqueue(
+            [
+                new Response(
+                    200, [
+                    'Vary' => 'Accept',
+                    'Date' => $now,
+                    'Cache-Control' => 'private, max-age=0, no-cache',
+                    'Last-Modified' => $now,
+                ]),
+            ]
+        );
+
+        $client = new Client(['base_url' => Server::$url]);
+        CacheSubscriber::attach(
+            $client,
+            [
+                'can_cache' => function (RequestInterface $request) {
+                    return true;
+                }
+            ]
+        );
+
+        $response1 = $client->get('/foo');
+        $this->assertEquals('MISS from GuzzleCache', $response1->getHeader('X-Cache-Lookup'));
+        $response2 = $client->get('/foo');
+        $this->assertEquals('HIT from GuzzleCache', $response2->getHeader('X-Cache-Lookup'));
     }
 
     /**
