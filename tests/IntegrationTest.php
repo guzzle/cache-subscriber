@@ -89,7 +89,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
      */
     public function testVaryUniqueResponses()
     {
-        $now = gmdate("D, d M Y H:i:s");
+        $now = $this->date();
 
         Server::enqueue(
             [
@@ -387,7 +387,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
      */
     private function setupMultipleVaryResponses()
     {
-        $now = gmdate("D, d M Y H:i:s");
+        $now = $this->date();
 
         Server::enqueue(
             [
@@ -450,5 +450,21 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
         }
 
         return $client;
+    }
+
+    /**
+     * Return a date string suitable for using in an HTTP header.
+     *
+     * @param int $timestamp (optional) A Unix timestamp to generate the date.
+     *
+     * @return string The generated date string.
+     */
+    private function date($timestamp = null)
+    {
+        if (!$timestamp) {
+            $timestamp = time();
+        }
+
+        return gmdate("D, d M Y H:i:s", $timestamp) . ' GMT';
     }
 }
