@@ -121,5 +121,5 @@ can_cache
 
 .. warning::
 
-    This is a WIP update for Guzzle 4+. It hasn't been tested and is in
+    This is a WIP update for Guzzle 5+. It hasn't been tested and is in
     active development. Expect bugs and breaks.
