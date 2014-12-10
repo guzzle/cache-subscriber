@@ -16,10 +16,10 @@ use GuzzleHttp\Message\ResponseInterface;
 class ValidationSubscriber implements SubscriberInterface
 {
     /** @var CacheStorageInterface Cache object storing cache data */
-    protected $storage;
+    private $storage;
 
     /** @var callable */
-    protected $canCache;
+    private $canCache;
 
     /**
      * @param CacheStorageInterface $cache    Cache storage

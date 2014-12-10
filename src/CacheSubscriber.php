@@ -28,12 +28,11 @@ use GuzzleHttp\Message\ResponseInterface;
  */
 class CacheSubscriber implements SubscriberInterface
 {
-    /** @var callable Determines if a request is cacheable */
-    protected $canCache;
-
     /** @var CacheStorageInterface $cache Object used to cache responses */
-    protected $storage;
+    private $storage;
 
+    /** @var callable Determines if a request is cacheable */
+    private $canCache;
     /**
      * @param CacheStorageInterface $cache    Cache storage
      * @param callable              $canCache Callable used to determine if a
