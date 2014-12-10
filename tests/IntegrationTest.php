@@ -5,6 +5,7 @@ require_once __DIR__ . '/../vendor/guzzlehttp/ringphp/tests/Client/Server.php';
 require_once __DIR__ . '/../vendor/guzzlehttp/guzzle/tests/Server.php';
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ServerException;
 use GuzzleHttp\Message\RequestInterface;
 use GuzzleHttp\Message\Response;
 use GuzzleHttp\Stream\Stream;
@@ -363,6 +364,77 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
     }
 
     /**
+     * Test that stale responses are used on errors if allowed.
+     */
+    public function testOnErrorStaleResponse()
+    {
+        $now = $this->date();
+
+        Server::enqueue([
+            new Response(200, [
+                'Date' => $now,
+                'Cache-Control' => 'private, max-age=0, must-revalidate, stale-if-error=666',
+                'Last-Modified' => 'Wed, 29 Oct 2014 20:30:57 GMT',
+            ], Stream::factory('It works!')),
+            new Response(503, [
+                'Date' => $now,
+                'Cache-Control' => 'private, s-maxage=0, max-age=0, must-revalidate',
+                'Last-Modified' => 'Wed, 29 Oct 2014 20:30:57 GMT',
+                'Age' => '1277'
+            ]),
+        ]);
+
+        $client = $this->setupClient();
+
+        // Prime the cache.
+        $response1 = $client->get('/foo');
+        $this->assertEquals(200, $response1->getStatusCode());
+
+        // This should return the first request.
+        $response2 = $client->get('/foo');
+        $this->assertEquals(200, $response2->getStatusCode());
+        $this->assertEquals('It works!', $this->getResponseBody($response2));
+        $this->assertEquals('HIT_ERROR from GuzzleCache', $response2->getHeader('x-cache'));
+        $this->assertCount(2, Server::received());
+    }
+
+    /**
+     * Test that expired stale responses aren't returned.
+     */
+    public function testOnErrorStaleResponseExpired()
+    {
+        // These dates are in the past, so the responses will be expired.
+        Server::enqueue([
+            new Response(200, [
+                'Date' => 'Wed, 29 Oct 2014 20:52:15 GMT',
+                'Cache-Control' => 'private, max-age=0, must-revalidate, stale-if-error=10',
+                'Last-Modified' => 'Wed, 29 Oct 2014 20:30:57 GMT',
+            ]),
+            new Response(503, [
+                'Date' => 'Wed, 29 Oct 2014 20:55:15 GMT',
+                'Cache-Control' => 'private, s-maxage=0, max-age=0, must-revalidate',
+                'Last-Modified' => 'Wed, 29 Oct 2014 20:30:57 GMT',
+            ]),
+        ]);
+
+        $client = $this->setupClient();
+
+        // Prime the cache.
+        $response1 = $client->get('/foo');
+        $this->assertEquals(200, $response1->getStatusCode());
+        $this->assertEquals('Wed, 29 Oct 2014 20:52:15 GMT', $response1->getHeader('Date'));
+
+        try {
+            $client->get('/foo');
+            $this->fail('503 was not thrown with an expired cache entry.');
+        } catch (ServerException $e) {
+            $this->assertEquals(503, $e->getCode());
+            $this->assertEquals('Wed, 29 Oct 2014 20:55:15 GMT', $e->getResponse()->getHeader('Date'));
+            $this->assertCount(2, Server::received());
+        }
+    }
+
+    /**
      * Test that the can_cache option can modify cache behaviour.
      */
     public function testCanCache()
@@ -375,10 +447,16 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
             [
                 new Response(
                     200, [
-                    'Vary' => 'Accept',
                     'Date' => $now,
                     'Cache-Control' => 'private, max-age=0, no-cache',
                     'Last-Modified' => $now,
+                ], Stream::factory('It works!')),
+                new Response(
+                    304, [
+                    'Date' => $now,
+                    'Cache-Control' => 'private, max-age=0, no-cache',
+                    'Last-Modified' => $now,
+                    'Age' => 0,
                 ]),
             ]
         );
@@ -397,6 +475,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals('MISS from GuzzleCache', $response1->getHeader('X-Cache-Lookup'));
         $response2 = $client->get('/foo');
         $this->assertEquals('HIT from GuzzleCache', $response2->getHeader('X-Cache-Lookup'));
+        $this->assertEquals('It works!', $this->getResponseBody($response2));
     }
 
     /**
