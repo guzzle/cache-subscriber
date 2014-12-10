@@ -253,7 +253,8 @@ class CacheSubscriber implements SubscriberInterface
 
         $freshness = Utils::getFreshness($response);
 
-        if ($freshness !== null && $freshness <= 0) {
+        // Only add a Warning header if we are returning a stale response.
+        if ($params['cache_hit'] && $freshness !== null && $freshness <= 0) {
             $response->addHeader(
                 'Warning',
                 sprintf(
