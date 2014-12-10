@@ -111,9 +111,11 @@ class ValidationSubscriber implements SubscriberInterface
      */
     private function handleBadResponse(BadResponseException $e)
     {
-        // 404 errors mean the resource no longer exists, so remove from
+        // 404 / 410 errors mean the resource no longer exists, so remove from
         // cache.
-        if ($e->getResponse()->getStatusCode() == 404) {
+        static $gone = [404 => true, 410 => true];
+
+        if (isset($gone[$e->getResponse()->getStatusCode()])) {
             $this->storage->delete($e->getRequest());
         }
 
