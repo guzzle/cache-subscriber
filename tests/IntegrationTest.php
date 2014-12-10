@@ -333,7 +333,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
      */
     public function testCanCache()
     {
-        $now = gmdate("D, d M Y H:i:s");
+        $now = $this->date();
 
         // Return an uncacheable response, that is then cached by can_cache
         // returning TRUE.
