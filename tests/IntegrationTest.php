@@ -96,7 +96,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
                 'Cache-Control' => 'private, s-maxage=0, max-age=0, must-revalidate',
                 'Last-Modified' => 'Wed, 29 Oct 2014 20:30:57 GMT',
                 'Age' => '1277',
-            ])
+            ]),
         ]);
 
         $client = $this->setupClient();
@@ -210,7 +210,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
             [
                 'headers' => [
                     'Accept' => 'text/html',
-                    'User-Agent' => 'Testing/1.0'
+                    'User-Agent' => 'Testing/1.0',
                 ]
             ]
         );
@@ -224,7 +224,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
             [
                 'headers' => [
                     'Accept' => 'text/html',
-                    'User-Agent' => 'Testing/2.0'
+                    'User-Agent' => 'Testing/2.0',
                 ]
             ]
         );
@@ -243,7 +243,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
             [
                 'headers' => [
                     'Accept' => 'text/html',
-                    'User-Agent' => 'Testing/2.0'
+                    'User-Agent' => 'Testing/2.0',
                 ]
             ]
         );
@@ -255,7 +255,6 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
             'Test/2.0 request.',
             $this->getResponseBody($response5)
         );
-
     }
 
     /**
@@ -272,7 +271,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
             [
                 'headers' => [
                     'Accept' => 'text/html',
-                    'User-Agent' => 'Testing/1.0'
+                    'User-Agent' => 'Testing/1.0',
                 ]
             ]
         );
@@ -281,7 +280,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
             [
                 'headers' => [
                     'Accept' => 'text/html',
-                    'User-Agent' => 'Testing/2.0'
+                    'User-Agent' => 'Testing/2.0',
                 ]
             ]
         );
@@ -291,7 +290,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
             [
                 'headers' => [
                     'Accept' => 'application/json',
-                    'User-Agent' => 'Testing/1.0'
+                    'User-Agent' => 'Testing/1.0',
                 ]
             ]
         );
@@ -309,7 +308,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
             [
                 'headers' => [
                     'Accept' => 'application/json',
-                    'User-Agent' => 'Testing/2.0'
+                    'User-Agent' => 'Testing/2.0',
                 ]
             ]
         );
@@ -336,7 +335,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
             [
                 'headers' => [
                     'Accept' => 'text/html',
-                    'User-Agent' => 'Testing/1.0'
+                    'User-Agent' => 'Testing/1.0',
                 ]
             ]
         );
@@ -344,7 +343,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
             [
                 'headers' => [
                     'Accept' => 'text/html',
-                    'User-Agent' => 'Testing/2.0'
+                    'User-Agent' => 'Testing/2.0',
                 ]
             ]
         );
@@ -352,7 +351,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
             [
                 'headers' => [
                     'Accept' => 'application/json',
-                    'User-Agent' => 'Testing/1.0'
+                    'User-Agent' => 'Testing/1.0',
                 ]
             ]
         );
@@ -360,7 +359,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
             [
                 'headers' => [
                     'Accept' => 'application/json',
-                    'User-Agent' => 'Testing/2.0'
+                    'User-Agent' => 'Testing/2.0',
                 ]
             ]
         );
@@ -370,7 +369,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
             [
                 'headers' => [
                     'Accept' => 'application/json',
-                    'User-Agent' => 'Testing/2.0'
+                    'User-Agent' => 'Testing/2.0',
                 ]
             ]
         );

@@ -12,7 +12,6 @@ use PHPUnit_Framework_TestCase;
  */
 class UtilsTest extends PHPUnit_Framework_TestCase
 {
-
     /**
      * Test that a max-age of zero isn't returned as null.
      */
