@@ -7,12 +7,12 @@ use GuzzleHttp\Message\RequestInterface;
 use GuzzleHttp\Message\ResponseInterface;
 
 /**
- * Cache utility functions
+ * Cache utility functions.
  */
 class Utils
 {
     /**
-     * Get a cache control directive from a message
+     * Get a cache control directive from a message.
      *
      * @param MessageInterface $message Message to retrieve
      * @param string           $part    Cache directive to retrieve

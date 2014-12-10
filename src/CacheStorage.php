@@ -165,7 +165,7 @@ class CacheStorage implements CacheStorageInterface
     }
 
     /**
-     * Hash a request URL into a string that returns cache metadata
+     * Hash a request URL into a string that returns cache metadata.
      *
      * @param RequestInterface $request The Request to generate the cache key
      *                                  for.
@@ -188,7 +188,7 @@ class CacheStorage implements CacheStorageInterface
     }
 
     /**
-     * Create a cache key for a response's body
+     * Create a cache key for a response's body.
      *
      * @param string          $url  URL of the entry
      * @param StreamInterface $body Response body
@@ -201,7 +201,7 @@ class CacheStorage implements CacheStorageInterface
     }
 
     /**
-     * Determines whether two Request HTTP header sets are non-varying
+     * Determines whether two Request HTTP header sets are non-varying.
      *
      * @param string $vary Response vary header
      * @param array  $r1   HTTP header array
@@ -226,7 +226,7 @@ class CacheStorage implements CacheStorageInterface
     }
 
     /**
-     * Creates an array of cacheable and normalized message headers
+     * Creates an array of cacheable and normalized message headers.
      *
      * @param MessageInterface $message
      *
