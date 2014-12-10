@@ -4,9 +4,9 @@ namespace GuzzleHttp\Subscriber\Cache;
 use GuzzleHttp\Event\CompleteEvent;
 use GuzzleHttp\Event\RequestEvents;
 use GuzzleHttp\Event\SubscriberInterface;
+use GuzzleHttp\Exception\BadResponseException;
 use GuzzleHttp\Message\RequestInterface;
 use GuzzleHttp\Message\ResponseInterface;
-use GuzzleHttp\Exception\BadResponseException;
 
 /**
  * Validates cached responses as needed.
@@ -15,23 +15,31 @@ use GuzzleHttp\Exception\BadResponseException;
  */
 class ValidationSubscriber implements SubscriberInterface
 {
-    /** @var CacheStorageInterface Cache object storing cache data */
+    /**
+     * The cache storage instance.
+     *
+     * @var CacheStorageInterface $cache
+     */
     protected $storage;
 
-    /** @var callable */
+    /**
+     * The callable to determine if a request is cacheable.
+     *
+     * @var callable
+     */
     protected $canCache;
 
     /**
+     * Create a new validation subscriber instance.
+     *
      * @param CacheStorageInterface $cache    Cache storage
      * @param callable              $canCache Callable used to determine if a
      *                                        request can be cached. Accepts a
      *                                        RequestInterface and returns a
      *                                        boolean value.
      */
-    public function __construct(
-        CacheStorageInterface $cache,
-        callable $canCache
-    ) {
+    public function __construct(CacheStorageInterface $cache, callable $canCache)
+    {
         $this->storage = $cache;
         $this->canCache = $canCache;
     }
@@ -52,11 +60,8 @@ class ValidationSubscriber implements SubscriberInterface
         }
     }
 
-    private function validate(
-        RequestInterface $request,
-        ResponseInterface $response,
-        CompleteEvent $event
-    ) {
+    private function validate(RequestInterface $request, ResponseInterface $response, CompleteEvent $event)
+    {
         try {
             $validate = $this->createRevalidationRequest($request, $response);
             $validated = $event->getClient()->send($validate);
@@ -71,10 +76,8 @@ class ValidationSubscriber implements SubscriberInterface
         }
     }
 
-    private function shouldValidate(
-        RequestInterface $request,
-        ResponseInterface $response
-    ) {
+    private function shouldValidate(RequestInterface $request, ResponseInterface $response)
+    {
         if ($request->getMethod() != 'GET'
             || $request->getConfig()->get('cache.disable')
         ) {
@@ -103,16 +106,15 @@ class ValidationSubscriber implements SubscriberInterface
     }
 
     /**
-     * Handles a bad response when attempting to validate
+     * Handles a bad response when attempting to validate.
      *
-     * @param BadResponseException $e Exception encountered
+     * @param BadResponseException $e Exception encountered.
      *
      * @throws BadResponseException
      */
     private function handleBadResponse(BadResponseException $e)
     {
-        // 404 errors mean the resource no longer exists, so remove from
-        // cache.
+        // 404 errors mean the resource no longer exists, so remove from the cache.
         if ($e->getResponse()->getStatusCode() == 404) {
             $this->storage->delete($e->getRequest());
         }
@@ -121,17 +123,15 @@ class ValidationSubscriber implements SubscriberInterface
     }
 
     /**
-     * Creates a request to use for revalidation
+     * Creates a request to use for revalidation.
      *
-     * @param RequestInterface  $request  Request
-     * @param ResponseInterface $response Response to validate
+     * @param RequestInterface  $request  Request.
+     * @param ResponseInterface $response Response to validate.
      *
-     * @return RequestInterface returns a revalidation request
+     * @return RequestInterface returns a revalidation request.
      */
-    private function createRevalidationRequest(
-        RequestInterface $request,
-        ResponseInterface $response
-    ) {
+    private function createRevalidationRequest(RequestInterface $request, ResponseInterface $response)
+    {
         $validate = clone $request;
         $validate->getConfig()->set('cache.disable', true);
         $validate->removeHeader('Pragma');
@@ -171,11 +171,12 @@ class ValidationSubscriber implements SubscriberInterface
             // Revalidation failed, so remove from cache and retry.
             $this->storage->delete($request);
             $event->intercept($event->getClient()->send($request));
+
             return;
         }
 
         static $replaceHeaders = ['Date', 'Expires', 'Cache-Control',
-            'ETag', 'Last-Modified'];
+            'ETag', 'Last-Modified', ];
 
         // Replace cached headers with any of these headers from the
         // origin server that might be more up to date

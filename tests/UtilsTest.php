@@ -12,7 +12,6 @@ use PHPUnit_Framework_TestCase;
  */
 class UtilsTest extends PHPUnit_Framework_TestCase
 {
-
     /**
      * Test that a max-age of zero isn't returned as null.
      */
@@ -25,7 +24,7 @@ class UtilsTest extends PHPUnit_Framework_TestCase
         $response = $messageFactory->createResponse(200, ['Cache-Control' => 'max-age=0']);
         $this->assertSame(0, Utils::getMaxAge($response));
 
-        $response = $messageFactory->createResponse(200, ['Expires' => gmdate('D, d M Y H:i:s') . ' GMT']);
+        $response = $messageFactory->createResponse(200, ['Expires' => gmdate('D, d M Y H:i:s').' GMT']);
         $this->assertLessThanOrEqual(0, Utils::getMaxAge($response));
     }
 
