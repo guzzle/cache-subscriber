@@ -21,6 +21,18 @@ class ValidationSubscriber implements SubscriberInterface
     /** @var callable */
     private $canCache;
 
+    /** @var array */
+    private static $gone = [404 => true, 410 => true];
+
+    /** @var array */
+    private static $replaceHeaders = [
+        'Date',
+        'Expires',
+        'Cache-Control',
+        'ETag',
+        'Last-Modified',
+    ];
+
     /**
      * @param CacheStorageInterface $cache    Cache storage
      * @param callable              $canCache Callable used to determine if a
@@ -113,9 +125,7 @@ class ValidationSubscriber implements SubscriberInterface
      */
     private function handleBadResponse(BadResponseException $e)
     {
-        static $gone = [404 => true, 410 => true];
-
-        if (isset($gone[$e->getResponse()->getStatusCode()])) {
+        if (isset(self::$gone[$e->getResponse()->getStatusCode()])) {
             $this->storage->delete($e->getRequest());
         }
 
@@ -177,13 +187,10 @@ class ValidationSubscriber implements SubscriberInterface
             return;
         }
 
-        static $replaceHeaders = ['Date', 'Expires', 'Cache-Control',
-            'ETag', 'Last-Modified'];
-
         // Replace cached headers with any of these headers from the
         // origin server that might be more up to date
         $modified = false;
-        foreach ($replaceHeaders as $name) {
+        foreach (self::$replaceHeaders as $name) {
             if ($validated->hasHeader($name)
                 && $validated->getHeader($name) != $response->getHeader($name)
             ) {
