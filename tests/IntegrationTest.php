@@ -5,6 +5,7 @@ require_once __DIR__ . '/../vendor/guzzlehttp/ringphp/tests/Client/Server.php';
 require_once __DIR__ . '/../vendor/guzzlehttp/guzzle/tests/Server.php';
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Exception\ServerException;
 use GuzzleHttp\Message\RequestInterface;
 use GuzzleHttp\Message\Response;
@@ -499,6 +500,22 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
     }
 
     /**
+     * Test that cache entries are deleted when a response 404's.
+     */
+    public function test404CacheDelete()
+    {
+        $this->fourXXCacheDelete(404);
+    }
+
+    /**
+     * Test that cache entries are deleted when a response 410's.
+     */
+    public function test410CacheDelete()
+    {
+        $this->fourXXCacheDelete(410);
+    }
+
+    /**
      * Decode a response body from TestServer.
      *
      * TestServer encodes all responses with base64, so we need to decode them
@@ -599,5 +616,69 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
         }
 
         return gmdate("D, d M Y H:i:s", $timestamp) . ' GMT';
+    }
+
+    /**
+     * Helper to test that a 400 response deletes cache entries.
+     *
+     * @param int $errorCode The error code to test, such as 404 or 410.
+     *
+     * @throws \Exception
+     */
+    private function fourXXCacheDelete($errorCode)
+    {
+        $now = $this->date();
+
+        Server::enqueue(
+            [
+                new Response(
+                    200, [
+                    'Date' => $now,
+                    'Cache-Control' => 'public, max-age=1000, must-revalidate',
+                    'Last-Modified' => $now,
+                ]
+                ),
+                new Response(
+                    304, [
+                    'Date' => $now,
+                    'Cache-Control' => 'public, max-age=1000, must-revalidate',
+                    'Last-Modified' => $now,
+                    'Age' => 0,
+                ]
+                ),
+                new Response(
+                    $errorCode, [
+                    'Date' => $now,
+                    'Cache-Control' => 'public, max-age=1000, must-revalidate',
+                    'Last-Modified' => $now,
+                ]
+                ),
+                new Response(
+                    200, [
+                    'Date' => $now,
+                    'Cache-Control' => 'public, max-age=1000, must-revalidate',
+                    'Last-Modified' => $now,
+                ]
+                ),
+            ]
+        );
+
+        $client = $this->setupClient();
+        $response1 = $client->get('/foo');
+        $this->assertEquals('MISS from GuzzleCache', $response1->getHeader('X-Cache-Lookup'));
+        $response2 = $client->get('/foo');
+        $this->assertEquals('HIT from GuzzleCache', $response2->getHeader('X-Cache-Lookup'));
+
+        try {
+            $client->get('/foo');
+            $this->fail($errorCode . ' was not thrown.');
+        } catch (RequestException $e) {
+            $response3 = $e->getResponse();
+            $this->assertEquals($errorCode, $response3->getStatusCode());
+            $this->assertEquals('MISS from GuzzleCache', $response3->getHeader('X-Cache-Lookup'));
+        }
+
+        $response4 = $client->get('/foo');
+        $this->assertEquals('MISS from GuzzleCache', $response4->getHeader('X-Cache-Lookup'));
     }
 }
