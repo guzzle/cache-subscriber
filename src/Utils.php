@@ -62,13 +62,17 @@ class Utils
      */
     public static function getMaxAge(ResponseInterface $response)
     {
-        $parts = AbstractMessage::parseHeader($response, 'Cache-Control');
+        $smaxage = Utils::getDirective($response, 's-maxage');
+        if (is_numeric($smaxage)) {
+            return (int) $smaxage;
+        }
 
-        if (isset($parts['s-maxage'])) {
-            return $parts['s-maxage'];
-        } elseif (isset($parts['max-age'])) {
-            return $parts['max-age'];
-        } elseif ($response->hasHeader('Expires')) {
+        $maxage = Utils::getDirective($response, 'max-age');
+        if (is_numeric($maxage)) {
+            return (int) $maxage;
+        }
+
+        if ($response->hasHeader('Expires')) {
             return strtotime($response->getHeader('Expires')) - time();
         }
 
@@ -93,7 +97,7 @@ class Utils
         $maxAge = self::getMaxAge($response);
         $age = self::getResponseAge($response);
 
-        return $maxAge && $age ? ($maxAge - $age) : null;
+        return is_int($maxAge) && is_int($age) ? ($maxAge - $age) : null;
     }
 
     /**

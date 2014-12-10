@@ -83,6 +83,26 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
     }
 
     /**
+     * Test that Warning headers aren't added to cache misses.
+     */
+    public function testCacheMissNoWarning()
+    {
+        Server::enqueue([
+            new Response(200, [
+                'Vary' => 'Accept-Encoding,Cookie,X-Use-HHVM',
+                'Date' => 'Wed, 29 Oct 2014 20:52:15 GMT',
+                'Cache-Control' => 'private, s-maxage=0, max-age=0, must-revalidate',
+                'Last-Modified' => 'Wed, 29 Oct 2014 20:30:57 GMT',
+                'Age' => '1277',
+            ])
+        ]);
+
+        $client = $this->setupClient();
+        $response = $client->get('/foo');
+        $this->assertFalse($response->hasHeader('warning'));
+    }
+
+    /**
      * Test that the Vary header creates unique cache entries.
      *
      * @throws \Exception
