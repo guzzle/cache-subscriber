@@ -103,7 +103,9 @@ class ValidationSubscriber implements SubscriberInterface
     }
 
     /**
-     * Handles a bad response when attempting to validate
+     * Handles a bad response when attempting to validate.
+     * 
+     * If the resource no longer exists, then remove from the cache.
      *
      * @param BadResponseException $e Exception encountered
      *
@@ -111,8 +113,6 @@ class ValidationSubscriber implements SubscriberInterface
      */
     private function handleBadResponse(BadResponseException $e)
     {
-        // 404 / 410 errors mean the resource no longer exists, so remove from
-        // cache.
         static $gone = [404 => true, 410 => true];
 
         if (isset($gone[$e->getResponse()->getStatusCode()])) {
@@ -123,7 +123,7 @@ class ValidationSubscriber implements SubscriberInterface
     }
 
     /**
-     * Creates a request to use for revalidation
+     * Creates a request to use for revalidation.
      *
      * @param RequestInterface  $request  Request
      * @param ResponseInterface $response Response to validate
