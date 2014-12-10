@@ -500,7 +500,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
     }
 
     /**
-     * Test that cache entries are deleted when a response 404's.
+     * Test that cache entries are deleted when a response 404s.
      */
     public function test404CacheDelete()
     {
@@ -508,7 +508,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
     }
 
     /**
-     * Test that cache entries are deleted when a response 410's.
+     * Test that cache entries are deleted when a response 410s.
      */
     public function test410CacheDelete()
     {
