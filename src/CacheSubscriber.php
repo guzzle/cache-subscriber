@@ -1,16 +1,16 @@
 <?php
 namespace GuzzleHttp\Subscriber\Cache;
 
-use GuzzleHttp\Event\HasEmitterInterface;
+use Doctrine\Common\Cache\ArrayCache;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Event\BeforeEvent;
 use GuzzleHttp\Event\CompleteEvent;
 use GuzzleHttp\Event\ErrorEvent;
+use GuzzleHttp\Event\HasEmitterInterface;
 use GuzzleHttp\Event\RequestEvents;
 use GuzzleHttp\Event\SubscriberInterface;
 use GuzzleHttp\Message\RequestInterface;
 use GuzzleHttp\Message\ResponseInterface;
-use Doctrine\Common\Cache\ArrayCache;
 
 /**
  * Plugin to enable the caching of GET and HEAD requests.
@@ -85,7 +85,7 @@ class CacheSubscriber implements SubscriberInterface
         if (!isset($options['can_cache'])) {
             $options['can_cache'] = [
                 'GuzzleHttp\Subscriber\Cache\Utils',
-                'canCacheRequest'
+                'canCacheRequest',
             ];
         }
 

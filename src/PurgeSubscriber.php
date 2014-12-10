@@ -18,7 +18,7 @@ class PurgeSubscriber implements SubscriberInterface
         'PUT'    => true,
         'POST'   => true,
         'DELETE' => true,
-        'PATCH'  => true
+        'PATCH'  => true,
     ];
 
     /**

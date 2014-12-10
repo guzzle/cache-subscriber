@@ -1,15 +1,15 @@
 <?php
 namespace GuzzleHttp\Subscriber\Cache;
 
+use Doctrine\Common\Cache\Cache;
 use GuzzleHttp\Message\AbstractMessage;
 use GuzzleHttp\Message\MessageInterface;
 use GuzzleHttp\Message\Request;
 use GuzzleHttp\Message\RequestInterface;
-use GuzzleHttp\Message\ResponseInterface;
 use GuzzleHttp\Message\Response;
-use GuzzleHttp\Stream\StreamInterface;
+use GuzzleHttp\Message\ResponseInterface;
 use GuzzleHttp\Stream;
-use Doctrine\Common\Cache\Cache;
+use GuzzleHttp\Stream\StreamInterface;
 
 /**
  * Default cache storage implementation.
@@ -157,6 +157,7 @@ class CacheStorage implements CacheStorageInterface
             } else {
                 $this->cache->delete($key);
             }
+
             return null;
         }
 
@@ -173,7 +174,7 @@ class CacheStorage implements CacheStorageInterface
      *
      * @return string
      */
-    private function getCacheKey(RequestInterface $request, array $vary = array())
+    private function getCacheKey(RequestInterface $request, array $vary = [])
     {
         $key = $request->getMethod() . ' ' . $request->getUrl();
 
@@ -245,7 +246,7 @@ class CacheStorage implements CacheStorageInterface
             'transfer-encoding' => true,
             'upgrade' => true,
             'set-cookie' => true,
-            'set-cookie2' => true
+            'set-cookie2' => true,
         ];
 
         // Clone the response to not destroy any necessary headers when caching
@@ -335,6 +336,7 @@ class CacheStorage implements CacheStorageInterface
     {
         $parts = AbstractMessage::normalizeHeader($response, 'vary');
         sort($parts);
+
         return $parts;
     }
 

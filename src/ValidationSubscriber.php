@@ -4,9 +4,9 @@ namespace GuzzleHttp\Subscriber\Cache;
 use GuzzleHttp\Event\CompleteEvent;
 use GuzzleHttp\Event\RequestEvents;
 use GuzzleHttp\Event\SubscriberInterface;
+use GuzzleHttp\Exception\BadResponseException;
 use GuzzleHttp\Message\RequestInterface;
 use GuzzleHttp\Message\ResponseInterface;
-use GuzzleHttp\Exception\BadResponseException;
 
 /**
  * Validates cached responses as needed.
@@ -104,7 +104,7 @@ class ValidationSubscriber implements SubscriberInterface
 
     /**
      * Handles a bad response when attempting to validate.
-     * 
+     *
      * If the resource no longer exists, then remove from the cache.
      *
      * @param BadResponseException $e Exception encountered
@@ -173,6 +173,7 @@ class ValidationSubscriber implements SubscriberInterface
             // Revalidation failed, so remove from cache and retry.
             $this->storage->delete($request);
             $event->intercept($event->getClient()->send($request));
+
             return;
         }
 
