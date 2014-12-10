@@ -55,20 +55,19 @@ class ValidationSubscriber implements SubscriberInterface
     private function validate(
         RequestInterface $request,
         ResponseInterface $response,
-        CompleteEvent $e
+        CompleteEvent $event
     ) {
         try {
             $validate = $this->createRevalidationRequest($request, $response);
-            $validated = $e->getClient()->send($validate);
+            $validated = $event->getClient()->send($validate);
         } catch (BadResponseException $e) {
             $this->handleBadResponse($e);
-            return;
         }
 
         if ($validated->getStatusCode() == 200) {
-            $this->handle200Response($request, $validated, $e);
+            $this->handle200Response($request, $validated, $event);
         } elseif ($validated->getStatusCode() == 304) {
-            $this->handle304Response($request, $response, $validated, $e);
+            $this->handle304Response($request, $response, $validated, $event);
         }
     }
 
@@ -113,11 +112,12 @@ class ValidationSubscriber implements SubscriberInterface
     private function handleBadResponse(BadResponseException $e)
     {
         // 404 errors mean the resource no longer exists, so remove from
-        // cache, and prevent an additional request by throwing the exception
+        // cache.
         if ($e->getResponse()->getStatusCode() == 404) {
             $this->storage->delete($e->getRequest());
-            throw $e;
         }
+
+        throw $e;
     }
 
     /**

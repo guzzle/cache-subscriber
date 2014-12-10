@@ -183,7 +183,6 @@ class CacheSubscriber implements SubscriberInterface
         if ($response && $this->validateFailed($request, $response)) {
             $request->getConfig()->set('cache_hit', 'error');
             $response->setHeader('Age', Utils::getResponseAge($response));
-            $this->addResponseHeaders($request, $response);
             $event->intercept($response);
         }
     }
