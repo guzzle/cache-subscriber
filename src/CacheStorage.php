@@ -25,6 +25,21 @@ class CacheStorage implements CacheStorageInterface
     /** @var Cache */
     private $cache;
 
+    /** @var array Headers are excluded from the caching (see RFC 2616:13.5.1) */
+    private static $noCache = [
+        'age' => true,
+        'connection' => true,
+        'keep-alive' => true,
+        'proxy-authenticate' => true,
+        'proxy-authorization' => true,
+        'te' => true,
+        'trailers' => true,
+        'transfer-encoding' => true,
+        'upgrade' => true,
+        'set-cookie' => true,
+        'set-cookie2' => true,
+    ];
+
     /**
      * @param Cache  $cache      Cache backend.
      * @param string $keyPrefix  (optional) Key prefix to add to each key.
@@ -234,23 +249,8 @@ class CacheStorage implements CacheStorageInterface
      */
     private function persistHeaders(MessageInterface $message)
     {
-        // Headers are excluded from the caching (see RFC 2616:13.5.1)
-        static $noCache = [
-            'age' => true,
-            'connection' => true,
-            'keep-alive' => true,
-            'proxy-authenticate' => true,
-            'proxy-authorization' => true,
-            'te' => true,
-            'trailers' => true,
-            'transfer-encoding' => true,
-            'upgrade' => true,
-            'set-cookie' => true,
-            'set-cookie2' => true,
-        ];
-
         // Clone the response to not destroy any necessary headers when caching
-        $headers = array_diff_key($message->getHeaders(), $noCache);
+        $headers = array_diff_key($message->getHeaders(), self::$noCache);
 
         // Cast the headers to a string
         foreach ($headers as &$value) {
