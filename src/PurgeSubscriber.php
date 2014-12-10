@@ -10,18 +10,28 @@ use GuzzleHttp\Event\SubscriberInterface;
  */
 class PurgeSubscriber implements SubscriberInterface
 {
-    /** @var CacheStorageInterface */
+    /**
+     * The cache storage instance.
+     *
+     * @var CacheStorageInterface $cache
+     */
     private $storage;
 
-    /** @var array */
+    /**
+     * The array of purge methods.
+     *
+     * @var array
+     */
     private static $purgeMethods = [
         'PUT'    => true,
         'POST'   => true,
         'DELETE' => true,
-        'PATCH'  => true
+        'PATCH'  => true,
     ];
 
     /**
+     * Create a new purge subscriber instance.
+     *
      * @param CacheStorageInterface $storage Storage to modify if purging
      */
     public function __construct($storage)

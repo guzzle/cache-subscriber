@@ -7,12 +7,12 @@ use GuzzleHttp\Message\RequestInterface;
 use GuzzleHttp\Message\ResponseInterface;
 
 /**
- * Cache utility functions
+ * Cache utility functions.
  */
 class Utils
 {
     /**
-     * Get a cache control directive from a message
+     * Get a cache control directive from a message.
      *
      * @param MessageInterface $message Message to retrieve
      * @param string           $part    Cache directive to retrieve
@@ -30,8 +30,6 @@ class Utils
                 return true;
             }
         }
-
-        return null;
     }
 
     /**
@@ -75,8 +73,6 @@ class Utils
         if ($response->hasHeader('Expires')) {
             return strtotime($response->getHeader('Expires')) - time();
         }
-
-        return null;
     }
 
     /**
@@ -103,7 +99,7 @@ class Utils
     /**
      * Default function used to determine if a request can be cached.
      *
-     * @param RequestInterface $request Request to check
+     * @param RequestInterface $request Request to check.
      *
      * @return bool
      */
@@ -127,7 +123,7 @@ class Utils
     /**
      * Determines if a response can be cached.
      *
-     * @param ResponseInterface $response Response to check
+     * @param ResponseInterface $response Response to check.
      *
      * @return bool
      */
@@ -165,10 +161,8 @@ class Utils
             || $response->hasHeader('Last-Modified'); // Can validate
     }
 
-    public static function isResponseValid(
-        RequestInterface $request,
-        ResponseInterface $response
-    ) {
+    public static function isResponseValid(RequestInterface $request, ResponseInterface $response)
+    {
         $responseAge = Utils::getResponseAge($response);
         $maxAge = Utils::getDirective($response, 'max-age');
 

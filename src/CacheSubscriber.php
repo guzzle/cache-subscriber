@@ -1,16 +1,16 @@
 <?php
 namespace GuzzleHttp\Subscriber\Cache;
 
-use GuzzleHttp\Event\HasEmitterInterface;
+use Doctrine\Common\Cache\ArrayCache;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Event\BeforeEvent;
 use GuzzleHttp\Event\CompleteEvent;
 use GuzzleHttp\Event\ErrorEvent;
+use GuzzleHttp\Event\HasEmitterInterface;
 use GuzzleHttp\Event\RequestEvents;
 use GuzzleHttp\Event\SubscriberInterface;
 use GuzzleHttp\Message\RequestInterface;
 use GuzzleHttp\Message\ResponseInterface;
-use Doctrine\Common\Cache\ArrayCache;
 
 /**
  * Plugin to enable the caching of GET and HEAD requests.
@@ -28,23 +28,31 @@ use Doctrine\Common\Cache\ArrayCache;
  */
 class CacheSubscriber implements SubscriberInterface
 {
-    /** @var callable Determines if a request is cacheable */
-    protected $canCache;
-
-    /** @var CacheStorageInterface $cache Object used to cache responses */
+    /**
+     * The cache storage instance.
+     *
+     * @var CacheStorageInterface $cache
+     */
     protected $storage;
 
     /**
-     * @param CacheStorageInterface $cache    Cache storage
+     * The callable to determine if a request is cacheable.
+     *
+     * @var callable
+     */
+    protected $canCache;
+
+    /**
+     * Create a new cache subscriber instance.
+     *
+     * @param CacheStorageInterface $cache    Cache storage instance.
      * @param callable              $canCache Callable used to determine if a
      *                                        request can be cached. Accepts a
      *                                        RequestInterface and returns a
      *                                        boolean value.
      */
-    public function __construct(
-        CacheStorageInterface $cache,
-        callable $canCache
-    ) {
+    public function __construct(CacheStorageInterface $cache, callable $canCache)
+    {
         $this->storage = $cache;
         $this->canCache = $canCache;
     }
@@ -74,10 +82,8 @@ class CacheSubscriber implements SubscriberInterface
      *               that holds the created CacheSubscriber, and a 'storage'
      *               key that contains the cache storage used by the subscriber.
      */
-    public static function attach(
-        HasEmitterInterface $subject,
-        array $options = []
-    ) {
+    public static function attach(HasEmitterInterface $subject, array $options = [])
+    {
         if (!isset($options['storage'])) {
             $options['storage'] = new CacheStorage(new ArrayCache());
         }
@@ -85,7 +91,7 @@ class CacheSubscriber implements SubscriberInterface
         if (!isset($options['can_cache'])) {
             $options['can_cache'] = [
                 'GuzzleHttp\Subscriber\Cache\Utils',
-                'canCacheRequest'
+                'canCacheRequest',
             ];
         }
 
@@ -119,6 +125,8 @@ class CacheSubscriber implements SubscriberInterface
     /**
      * Checks if a request can be cached, and if so, intercepts with a cached
      * response is available.
+     *
+     * @param BeforeEvent $event
      */
     public function onBefore(BeforeEvent $event)
     {
@@ -126,11 +134,13 @@ class CacheSubscriber implements SubscriberInterface
 
         if (!$this->canCacheRequest($request)) {
             $this->cacheMiss($request);
+
             return;
         }
 
         if (!($response = $this->storage->fetch($request))) {
             $this->cacheMiss($request);
+
             return;
         }
 
@@ -148,7 +158,9 @@ class CacheSubscriber implements SubscriberInterface
     }
 
     /**
-     * Checks if the request and response can be cached, and if so, store it
+     * Checks if the request and response can be cached, and if so, store it.
+     *
+     * @param CompleteEvent $event
      */
     public function onComplete(CompleteEvent $event)
     {
@@ -167,7 +179,9 @@ class CacheSubscriber implements SubscriberInterface
     }
 
     /**
-     * If the request failed, then check if a cached response would suffice
+     * If the request failed, then check if a cached response would suffice.
+     *
+     * @param ErrorEvent $event
      */
     public function onError(ErrorEvent $event)
     {
@@ -192,10 +206,8 @@ class CacheSubscriber implements SubscriberInterface
         $request->getConfig()->set('cache_lookup', 'MISS');
     }
 
-    private function validate(
-        RequestInterface $request,
-        ResponseInterface $response
-    ) {
+    private function validate(RequestInterface $request, ResponseInterface $response)
+    {
         // Validation is handled in another subscriber and can be optionally
         // enabled/disabled.
         if (Utils::getDirective($response, 'must-revalidate')) {
@@ -205,10 +217,8 @@ class CacheSubscriber implements SubscriberInterface
         return Utils::isResponseValid($request, $response);
     }
 
-    private function validateFailed(
-        RequestInterface $request,
-        ResponseInterface $response
-    ) {
+    private function validateFailed(RequestInterface $request, ResponseInterface $response)
+    {
         $req = Utils::getDirective($request, 'stale-if-error');
         $res = Utils::getDirective($response, 'stale-if-error');
 
@@ -234,12 +244,10 @@ class CacheSubscriber implements SubscriberInterface
         && call_user_func($this->canCache, $request);
     }
 
-    private function addResponseHeaders(
-        RequestInterface $request,
-        ResponseInterface $response
-    ) {
+    private function addResponseHeaders(RequestInterface $request, ResponseInterface $response)
+    {
         $params = $request->getConfig();
-        $lookup = $params['cache_lookup'] . ' from GuzzleCache';
+        $lookup = $params['cache_lookup'].' from GuzzleCache';
         $response->addHeader('X-Cache-Lookup', $lookup);
 
         if ($params['cache_hit'] === true) {
@@ -257,7 +265,7 @@ class CacheSubscriber implements SubscriberInterface
             $response->addHeader(
                 'Warning',
                 sprintf(
-                    '%d GuzzleCache/' . ClientInterface::VERSION . ' "%s"',
+                    '%d GuzzleCache/'.ClientInterface::VERSION.' "%s"',
                     110,
                     'Response is stale'
                 )

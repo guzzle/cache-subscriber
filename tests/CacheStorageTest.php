@@ -13,7 +13,6 @@ use GuzzleHttp\Subscriber\Cache\CacheStorage;
  */
 class CacheStorageTest extends \PHPUnit_Framework_TestCase
 {
-
     /**
      * Test that a Response's max-age returns the correct TTL.
      */
@@ -25,7 +24,7 @@ class CacheStorageTest extends \PHPUnit_Framework_TestCase
 
         $getTtl = $this->getMethod('getTtl');
         $cache = new CacheStorage(new ArrayCache());
-        $ttl = $getTtl->invokeArgs($cache, array($response));
+        $ttl = $getTtl->invokeArgs($cache, [$response]);
         $this->assertEquals(10, $ttl);
     }
 
@@ -39,7 +38,7 @@ class CacheStorageTest extends \PHPUnit_Framework_TestCase
 
         $getTtl = $this->getMethod('getTtl');
         $cache = new CacheStorage(new ArrayCache());
-        $ttl = $getTtl->invokeArgs($cache, array($response));
+        $ttl = $getTtl->invokeArgs($cache, [$response]);
 
         // assertSame() here to be specific about null / false returns.
         $this->assertSame(0, $ttl);
@@ -54,7 +53,7 @@ class CacheStorageTest extends \PHPUnit_Framework_TestCase
 
         $getTtl = $this->getMethod('getTtl');
         $cache = new CacheStorage(new ArrayCache(), null, 10);
-        $ttl = $getTtl->invokeArgs($cache, array($response));
+        $ttl = $getTtl->invokeArgs($cache, [$response]);
         $this->assertEquals(10, $ttl);
     }
 
@@ -69,7 +68,7 @@ class CacheStorageTest extends \PHPUnit_Framework_TestCase
 
         $getTtl = $this->getMethod('getTtl');
         $cache = new CacheStorage(new ArrayCache());
-        $ttl = $getTtl->invokeArgs($cache, array($response));
+        $ttl = $getTtl->invokeArgs($cache, [$response]);
         $this->assertEquals(20, $ttl);
     }
 
@@ -84,7 +83,7 @@ class CacheStorageTest extends \PHPUnit_Framework_TestCase
 
         $getTtl = $this->getMethod('getTtl');
         $cache = new CacheStorage(new ArrayCache());
-        $ttl = $getTtl->invokeArgs($cache, array($response));
+        $ttl = $getTtl->invokeArgs($cache, [$response]);
         $this->assertEquals(10, $ttl);
     }
     /**

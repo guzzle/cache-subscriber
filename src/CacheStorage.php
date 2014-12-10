@@ -1,32 +1,46 @@
 <?php
 namespace GuzzleHttp\Subscriber\Cache;
 
+use Doctrine\Common\Cache\Cache;
 use GuzzleHttp\Message\AbstractMessage;
 use GuzzleHttp\Message\MessageInterface;
 use GuzzleHttp\Message\Request;
 use GuzzleHttp\Message\RequestInterface;
-use GuzzleHttp\Message\ResponseInterface;
 use GuzzleHttp\Message\Response;
-use GuzzleHttp\Stream\StreamInterface;
+use GuzzleHttp\Message\ResponseInterface;
 use GuzzleHttp\Stream;
-use Doctrine\Common\Cache\Cache;
+use GuzzleHttp\Stream\StreamInterface;
 
 /**
  * Default cache storage implementation.
  */
 class CacheStorage implements CacheStorageInterface
 {
-    /** @var string */
+    /**
+     * The cache key prefix.
+     *
+     * @var string
+     */
     private $keyPrefix;
 
-    /** @var int Default cache TTL */
+    /**
+     * The default cache TTL.
+     *
+     * @var int
+     */
     private $defaultTtl;
 
-    /** @var Cache */
+    /**
+     * The doctrine cache instance.
+     *
+     * @var Cache
+     */
     private $cache;
 
     /**
-     * @param Cache  $cache      Cache backend.
+     * Create a new cache storage instance.
+     *
+     * @param Cache  $cache      Doctrine cache instance.
      * @param string $keyPrefix  (optional) Key prefix to add to each key.
      * @param int    $defaultTtl (optional) The default TTL to set, in seconds.
      */
@@ -37,10 +51,14 @@ class CacheStorage implements CacheStorageInterface
         $this->defaultTtl = $defaultTtl;
     }
 
-    public function cache(
-        RequestInterface $request,
-        ResponseInterface $response
-    ) {
+    /**
+     * Cache an HTTP request.
+     *
+     * @param RequestInterface  $request  Request being cached
+     * @param ResponseInterface $response Response to cache
+     */
+    public function cache(RequestInterface $request, ResponseInterface $response)
+    {
         $ctime = time();
         $ttl = $this->getTtl($response);
         $key = $this->getCacheKey($request, $this->normalizeVary($response));
@@ -71,6 +89,11 @@ class CacheStorage implements CacheStorageInterface
         $this->cache->save($key, serialize($entries));
     }
 
+    /**
+     * Deletes cache entries that match a request.
+     *
+     * @param RequestInterface $request Request to delete from cache
+     */
     public function delete(RequestInterface $request)
     {
         $vary = $this->fetchVary($request);
@@ -94,6 +117,11 @@ class CacheStorage implements CacheStorageInterface
         $this->cache->delete($key);
     }
 
+    /**
+     * Purge all cache entries for a given URL.
+     *
+     * @param string $url
+     */
     public function purge($url)
     {
         foreach (['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS'] as $m) {
@@ -101,6 +129,13 @@ class CacheStorage implements CacheStorageInterface
         }
     }
 
+    /**
+     * Get a Response from the cache for a request.
+     *
+     * @param RequestInterface $request
+     *
+     * @return null|ResponseInterface
+     */
     public function fetch(RequestInterface $request)
     {
         $vary = $this->fetchVary($request);
@@ -112,7 +147,7 @@ class CacheStorage implements CacheStorageInterface
         $entries = $this->cache->fetch($key);
 
         if (!$entries) {
-            return null;
+            return;
         }
 
         $match = $matchIndex = null;
@@ -129,7 +164,7 @@ class CacheStorage implements CacheStorageInterface
         }
 
         if (!$match) {
-            return null;
+            return;
         }
 
         // Ensure that the response is not expired
@@ -157,37 +192,39 @@ class CacheStorage implements CacheStorageInterface
             } else {
                 $this->cache->delete($key);
             }
-            return null;
+
+            return;
         }
 
         return $response;
     }
 
     /**
-     * Hash a request URL into a string that returns cache metadata
+     * Hash a request URL into a string that returns cache metadata.
      *
      * @param RequestInterface $request The Request to generate the cache key
      *                                  for.
-     * @param array            $vary    (optional) An array of headers to vary
-     *                                  the cache key by.
+     *
+     * @param array $vary (optional) An array of headers to vary
+     *                    the cache key by.
      *
      * @return string
      */
-    private function getCacheKey(RequestInterface $request, array $vary = array())
+    private function getCacheKey(RequestInterface $request, array $vary = [])
     {
-        $key = $request->getMethod() . ' ' . $request->getUrl();
+        $key = $request->getMethod().' '.$request->getUrl();
 
         // If Vary headers have been passed in, fetch each header and add it to
         // the cache key.
         foreach ($vary as $header) {
-            $key .= " $header: " . $request->getHeader($header);
+            $key .= " $header: ".$request->getHeader($header);
         }
 
-        return $this->keyPrefix . md5($key);
+        return $this->keyPrefix.md5($key);
     }
 
     /**
-     * Create a cache key for a response's body
+     * Create a cache key for a response's body.
      *
      * @param string          $url  URL of the entry
      * @param StreamInterface $body Response body
@@ -196,11 +233,11 @@ class CacheStorage implements CacheStorageInterface
      */
     private function getBodyKey($url, StreamInterface $body)
     {
-        return $this->keyPrefix . md5($url) . Stream\Utils::hash($body, 'md5');
+        return $this->keyPrefix.md5($url).Stream\Utils::hash($body, 'md5');
     }
 
     /**
-     * Determines whether two Request HTTP header sets are non-varying
+     * Determines whether two Request HTTP header sets are non-varying.
      *
      * @param string $vary Response vary header
      * @param array  $r1   HTTP header array
@@ -208,7 +245,7 @@ class CacheStorage implements CacheStorageInterface
      *
      * @return bool
      */
-    private function requestsMatch($vary, $r1, $r2)
+    private function requestsMatch($vary, array $r1, array $r2)
     {
         if ($vary) {
             foreach (explode(',', $vary) as $header) {
@@ -225,7 +262,7 @@ class CacheStorage implements CacheStorageInterface
     }
 
     /**
-     * Creates an array of cacheable and normalized message headers
+     * Creates an array of cacheable and normalized message headers.
      *
      * @param MessageInterface $message
      *
@@ -245,7 +282,7 @@ class CacheStorage implements CacheStorageInterface
             'transfer-encoding' => true,
             'upgrade' => true,
             'set-cookie' => true,
-            'set-cookie2' => true
+            'set-cookie2' => true,
         ];
 
         // Clone the response to not destroy any necessary headers when caching
@@ -287,12 +324,8 @@ class CacheStorage implements CacheStorageInterface
         return $ttl ?: $this->defaultTtl;
     }
 
-    private function getManifestEntries(
-        $key,
-        $currentTime,
-        ResponseInterface $response,
-        $persistedRequest
-    ) {
+    private function getManifestEntries($key, $currentTime, ResponseInterface $response, $persistedRequest)
+    {
         $entries = [];
         $manifest = $this->cache->fetch($key);
 
@@ -335,20 +368,20 @@ class CacheStorage implements CacheStorageInterface
     {
         $parts = AbstractMessage::normalizeHeader($response, 'vary');
         sort($parts);
+
         return $parts;
     }
 
     /**
      * Cache the Vary headers from a response.
      *
-     * @param RequestInterface  $request  The Request that generated the Vary
-     *                                    headers.
+     * @param RequestInterface $request The Request that generated the Vary
+     *                                  headers.
+     *
      * @param ResponseInterface $response The Response with Vary headers.
      */
-    private function cacheVary(
-        RequestInterface $request,
-        ResponseInterface $response
-    ) {
+    private function cacheVary(RequestInterface $request, ResponseInterface $response)
+    {
         $key = $this->getVaryKey($request);
         $this->cache->save($key, $this->normalizeVary($response), $this->getTtl($response));
     }
@@ -392,7 +425,7 @@ class CacheStorage implements CacheStorageInterface
      */
     private function getVaryKey(RequestInterface $request)
     {
-        $key = $this->keyPrefix . md5('vary ' . $this->getCacheKey($request));
+        $key = $this->keyPrefix.md5('vary '.$this->getCacheKey($request));
 
         return $key;
     }
