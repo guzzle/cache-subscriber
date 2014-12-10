@@ -119,6 +119,8 @@ class CacheSubscriber implements SubscriberInterface
     /**
      * Checks if a request can be cached, and if so, intercepts with a cached
      * response is available.
+     *
+     * @param BeforeEvent $event
      */
     public function onBefore(BeforeEvent $event)
     {
@@ -149,6 +151,8 @@ class CacheSubscriber implements SubscriberInterface
 
     /**
      * Checks if the request and response can be cached, and if so, store it
+     *
+     * @param CompleteEvent $event
      */
     public function onComplete(CompleteEvent $event)
     {
@@ -168,6 +172,8 @@ class CacheSubscriber implements SubscriberInterface
 
     /**
      * If the request failed, then check if a cached response would suffice
+     *
+     * @param ErrorEvent $event
      */
     public function onError(ErrorEvent $event)
     {
