@@ -33,6 +33,7 @@ class CacheSubscriber implements SubscriberInterface
 
     /** @var callable Determines if a request is cacheable */
     private $canCache;
+
     /**
      * @param CacheStorageInterface $cache    Cache storage
      * @param callable              $canCache Callable used to determine if a
@@ -149,7 +150,7 @@ class CacheSubscriber implements SubscriberInterface
     }
 
     /**
-     * Checks if the request and response can be cached, and if so, store it
+     * Checks if the request and response can be cached, and if so, store it.
      *
      * @param CompleteEvent $event
      */
@@ -170,7 +171,7 @@ class CacheSubscriber implements SubscriberInterface
     }
 
     /**
-     * If the request failed, then check if a cached response would suffice
+     * If the request failed, then check if a cached response would suffice.
      *
      * @param ErrorEvent $event
      */

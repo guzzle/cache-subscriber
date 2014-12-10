@@ -10,7 +10,7 @@ use GuzzleHttp\Message\ResponseInterface;
 interface CacheStorageInterface
 {
     /**
-     * Get a Response from the cache for a request
+     * Get a Response from the cache for a request.
      *
      * @param RequestInterface $request
      *
@@ -19,7 +19,7 @@ interface CacheStorageInterface
     public function fetch(RequestInterface $request);
 
     /**
-     * Cache an HTTP request
+     * Cache an HTTP request.
      *
      * @param RequestInterface  $request  Request being cached
      * @param ResponseInterface $response Response to cache
@@ -30,14 +30,14 @@ interface CacheStorageInterface
     );
 
     /**
-     * Deletes cache entries that match a request
+     * Deletes cache entries that match a request.
      *
      * @param RequestInterface $request Request to delete from cache
      */
     public function delete(RequestInterface $request);
 
     /**
-     * Purge all cache entries for a given URL
+     * Purge all cache entries for a given URL.
      *
      * @param string $url
      */
