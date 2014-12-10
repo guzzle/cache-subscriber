@@ -59,6 +59,35 @@ class CacheStorageTest extends \PHPUnit_Framework_TestCase
     }
 
     /**
+     * Test that stale-if-error is added to the max-age header.
+     */
+    public function testGetTtlMaxAgeStaleIfError()
+    {
+        $response = new Response(200, [
+            'Cache-control' => 'max-age=10, stale-if-error=10',
+        ]);
+
+        $getTtl = $this->getMethod('getTtl');
+        $cache = new CacheStorage(new ArrayCache());
+        $ttl = $getTtl->invokeArgs($cache, array($response));
+        $this->assertEquals(20, $ttl);
+    }
+
+    /**
+     * Test that stale-if-error works without a max-age header.
+     */
+    public function testGetTtlStaleIfErrorAlone()
+    {
+        $response = new Response(200, [
+            'Cache-control' => 'stale-if-error=10',
+        ]);
+
+        $getTtl = $this->getMethod('getTtl');
+        $cache = new CacheStorage(new ArrayCache());
+        $ttl = $getTtl->invokeArgs($cache, array($response));
+        $this->assertEquals(10, $ttl);
+    }
+    /**
      * Return a protected or private method.
      *
      * @param string $name The name of the method.
