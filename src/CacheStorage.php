@@ -270,6 +270,7 @@ class CacheStorage implements CacheStorageInterface
     /**
      * Return the TTL to use when caching a Response.
      *
+     * @param RequestInterface $request The response calling request
      * @param ResponseInterface $response The response being cached.
      *
      * @return int The TTL in seconds.
