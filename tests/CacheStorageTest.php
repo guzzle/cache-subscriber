@@ -3,6 +3,7 @@
 namespace GuzzleHttp\Tests\Subscriber\Cache;
 
 use Doctrine\Common\Cache\ArrayCache;
+use GuzzleHttp\Message\Request;
 use GuzzleHttp\Message\Response;
 use GuzzleHttp\Subscriber\Cache\CacheStorage;
 
@@ -18,14 +19,31 @@ class CacheStorageTest extends \PHPUnit_Framework_TestCase
      */
     public function testGetTtlMaxAge()
     {
+        $request = new Request('get', '', [], null, []);
         $response = new Response(200, [
             'Cache-control' => 'max-age=10',
         ]);
 
         $getTtl = $this->getMethod('getTtl');
         $cache = new CacheStorage(new ArrayCache());
-        $ttl = $getTtl->invokeArgs($cache, [$response]);
+        $ttl = $getTtl->invokeArgs($cache, [$request, $response]);
         $this->assertEquals(10, $ttl);
+    }
+
+    /**
+     * Test that a Response's returned TTL is overidden by request cache.ttl option .
+     */
+    public function testGetTtlOverriden()
+    {
+        $request = new Request('get', '', [], null, ['cache.ttl' => 60]);
+        $response = new Response(200, [
+            'Cache-control' => 'max-age=10',
+        ]);
+
+        $getTtl = $this->getMethod('getTtl');
+        $cache = new CacheStorage(new ArrayCache());
+        $ttl = $getTtl->invokeArgs($cache, [$request, $response]);
+        $this->assertEquals(60, $ttl);
     }
 
     /**
@@ -34,11 +52,12 @@ class CacheStorageTest extends \PHPUnit_Framework_TestCase
      */
     public function testGetTtlDefault()
     {
+        $request = new Request('get', '', [], null, []);
         $response = new Response(200);
 
         $getTtl = $this->getMethod('getTtl');
         $cache = new CacheStorage(new ArrayCache());
-        $ttl = $getTtl->invokeArgs($cache, [$response]);
+        $ttl = $getTtl->invokeArgs($cache, [$request, $response]);
 
         // assertSame() here to be specific about null / false returns.
         $this->assertSame(0, $ttl);
@@ -49,11 +68,12 @@ class CacheStorageTest extends \PHPUnit_Framework_TestCase
      */
     public function testSetTtlDefault()
     {
+        $request = new Request('get', '', [], null, []);
         $response = new Response(200);
 
         $getTtl = $this->getMethod('getTtl');
         $cache = new CacheStorage(new ArrayCache(), null, 10);
-        $ttl = $getTtl->invokeArgs($cache, [$response]);
+        $ttl = $getTtl->invokeArgs($cache, [$request, $response]);
         $this->assertEquals(10, $ttl);
     }
 
@@ -62,13 +82,14 @@ class CacheStorageTest extends \PHPUnit_Framework_TestCase
      */
     public function testGetTtlMaxAgeStaleIfError()
     {
+        $request = new Request('get', '', [], null, []);
         $response = new Response(200, [
             'Cache-control' => 'max-age=10, stale-if-error=10',
         ]);
 
         $getTtl = $this->getMethod('getTtl');
         $cache = new CacheStorage(new ArrayCache());
-        $ttl = $getTtl->invokeArgs($cache, [$response]);
+        $ttl = $getTtl->invokeArgs($cache, [$request, $response]);
         $this->assertEquals(20, $ttl);
     }
 
@@ -77,13 +98,14 @@ class CacheStorageTest extends \PHPUnit_Framework_TestCase
      */
     public function testGetTtlStaleIfErrorAlone()
     {
+        $request = new Request('get', '', [], null, []);
         $response = new Response(200, [
             'Cache-control' => 'stale-if-error=10',
         ]);
 
         $getTtl = $this->getMethod('getTtl');
         $cache = new CacheStorage(new ArrayCache());
-        $ttl = $getTtl->invokeArgs($cache, [$response]);
+        $ttl = $getTtl->invokeArgs($cache, [$request, $response]);
         $this->assertEquals(10, $ttl);
     }
     /**

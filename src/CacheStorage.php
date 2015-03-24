@@ -57,7 +57,7 @@ class CacheStorage implements CacheStorageInterface
         ResponseInterface $response
     ) {
         $ctime = time();
-        $ttl = $this->getTtl($response);
+        $ttl = $this->getTtl($request, $response);
         $key = $this->getCacheKey($request, $this->normalizeVary($response));
         $headers = $this->persistHeaders($request);
         $entries = $this->getManifestEntries($key, $ctime, $response, $headers);
@@ -80,8 +80,11 @@ class CacheStorage implements CacheStorageInterface
             $this->persistHeaders($response),
             $response->getStatusCode(),
             $bodyDigest,
-            $ctime + $ttl
+            $ctime + $ttl,
+            $ttl
         ]);
+
+        $request->getConfig()->set('cache.used_ttl', $ttl);
 
         $this->cache->save($key, serialize($entries));
     }
@@ -176,6 +179,10 @@ class CacheStorage implements CacheStorageInterface
             return null;
         }
 
+        if (isset($match[5])) {
+            $request->getConfig()->set('cache.used_ttl', $match[5]);
+        }
+
         return $response;
     }
 
@@ -267,7 +274,7 @@ class CacheStorage implements CacheStorageInterface
      *
      * @return int The TTL in seconds.
      */
-    private function getTtl(ResponseInterface $response)
+    private function getTtl(RequestInterface $request, ResponseInterface $response)
     {
         $ttl = 0;
 
@@ -283,6 +290,10 @@ class CacheStorage implements CacheStorageInterface
             if (is_numeric($stale)) {
                 $ttl += $stale;
             }
+        }
+
+        if (($forceTtl = $request->getConfig()->get('cache.ttl')) !== null) {
+            $ttl = (int) $forceTtl;
         }
 
         return $ttl ?: $this->defaultTtl;
@@ -352,7 +363,7 @@ class CacheStorage implements CacheStorageInterface
         ResponseInterface $response
     ) {
         $key = $this->getVaryKey($request);
-        $this->cache->save($key, $this->normalizeVary($response), $this->getTtl($response));
+        $this->cache->save($key, $this->normalizeVary($response), $this->getTtl($request, $response));
     }
 
     /**

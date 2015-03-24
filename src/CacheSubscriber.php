@@ -256,6 +256,10 @@ class CacheSubscriber implements SubscriberInterface
             $response->addHeader('X-Cache', 'MISS from GuzzleCache');
         }
 
+        if (isset($params['cache.used_ttl'])) {
+            $response->addHeader('X-Cache-Ttl', $params['cache.used_ttl']);
+        }
+
         $freshness = Utils::getFreshness($response);
 
         // Only add a Warning header if we are returning a stale response.
