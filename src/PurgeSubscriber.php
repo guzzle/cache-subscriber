@@ -39,7 +39,7 @@ class PurgeSubscriber implements SubscriberInterface
         $request = $event->getRequest();
 
         if (isset(self::$purgeMethods[$request->getMethod()])) {
-            $this->storage->purge($request);
+            $this->storage->purge($request->getUrl());
         }
     }
 }
