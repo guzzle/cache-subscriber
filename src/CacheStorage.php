@@ -283,6 +283,8 @@ class CacheStorage implements CacheStorageInterface
             if (is_numeric($stale)) {
                 $ttl += $stale;
             }
+        } elseif ($expires = $response->getHeader('Expires')) {
+            $ttl += strtotime($expires) - time();
         }
 
         return $ttl ?: $this->defaultTtl;
