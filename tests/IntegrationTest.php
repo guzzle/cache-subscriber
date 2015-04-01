@@ -45,18 +45,18 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
                 'Age' => '1278'
             ]),
             new Response(200, [
-              'Vary' => 'Accept-Encoding,Cookie,X-Use-HHVM',
-              'Date' => 'Wed, 29 Oct 2014 20:52:15 GMT',
-              'Cache-Control' => 'private, s-maxage=0, max-age=0',
-              'Last-Modified' => 'Wed, 29 Oct 2014 20:30:57 GMT',
-              'Age' => '1277'
+                'Vary' => 'Accept-Encoding,Cookie,X-Use-HHVM',
+                'Date' => 'Wed, 29 Oct 2014 20:52:15 GMT',
+                'Cache-Control' => 'private, s-maxage=0, max-age=0',
+                'Last-Modified' => 'Wed, 29 Oct 2014 20:30:57 GMT',
+                'Age' => '1277'
             ]),
             new Response(200, [
-              'Vary' => 'Accept-Encoding,Cookie,X-Use-HHVM',
-              'Date' => 'Wed, 29 Oct 2014 20:53:15 GMT',
-              'Cache-Control' => 'private, s-maxage=0, max-age=0',
-              'Last-Modified' => 'Wed, 29 Oct 2014 20:53:00 GMT',
-              'Age' => '1277'
+                'Vary' => 'Accept-Encoding,Cookie,X-Use-HHVM',
+                'Date' => 'Wed, 29 Oct 2014 20:53:15 GMT',
+                'Cache-Control' => 'private, s-maxage=0, max-age=0',
+                'Last-Modified' => 'Wed, 29 Oct 2014 20:53:00 GMT',
+                'Age' => '1277'
             ]),
         ]);
 
@@ -496,6 +496,49 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
         $response2 = $client->get('/foo');
         $this->assertEquals('HIT from GuzzleCache', $response2->getHeader('X-Cache-Lookup'));
         $this->assertEquals('It works!', $this->getResponseBody($response2));
+    }
+
+    /**
+     * Test that PURGE can delete cached responses.
+     */
+    public function testCanPurge()
+    {
+        $now = $this->date();
+
+        // Return a cached response that is then purged, and requested again
+        Server::enqueue(
+            [
+                new Response(
+                    200, [
+                    'Date' => $now,
+                    'Cache-Control' => 'public, max-age=60',
+                    'Last-Modified' => $now,
+                ], Stream::factory('It is foo!')),
+                new Response(
+                    200, [
+                    'Date' => $now,
+                    'Cache-Control' => 'public, max-age=60',
+                    'Last-Modified' => $now,
+                ], Stream::factory('It is bar!')),
+            ]
+        );
+
+        $client = $this->setupClient();
+
+        $response1 = $client->get('/foo');
+        $this->assertEquals('MISS from GuzzleCache', $response1->getHeader('X-Cache-Lookup'));
+        $this->assertEquals('It is foo!', $this->getResponseBody($response1));
+
+        $response2 = $client->get('/foo');
+        $this->assertEquals('HIT from GuzzleCache', $response2->getHeader('X-Cache-Lookup'));
+        $this->assertEquals('It is foo!', $this->getResponseBody($response2));
+
+        $response3 = $client->send($client->createRequest('PURGE', '/foo'));
+        $this->assertEquals(204, $response3->getStatusCode());
+
+        $response4 = $client->get('/foo');
+        $this->assertEquals('MISS from GuzzleCache', $response4->getHeader('X-Cache-Lookup'));
+        $this->assertEquals('It is bar!', $this->getResponseBody($response4));
     }
 
     /**
