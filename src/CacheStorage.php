@@ -111,7 +111,7 @@ class CacheStorage implements CacheStorageInterface
 
     public function purge($url)
     {
-        foreach (['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS'] as $m) {
+        foreach (['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PURGE'] as $m) {
             $this->delete(new Request($m, $url));
         }
     }

@@ -4,6 +4,7 @@ namespace GuzzleHttp\Subscriber\Cache;
 use GuzzleHttp\Event\BeforeEvent;
 use GuzzleHttp\Event\RequestEvents;
 use GuzzleHttp\Event\SubscriberInterface;
+use GuzzleHttp\Message\Response;
 
 /**
  * Automatically purges a URL when a non-idempotent request is made to it.
@@ -19,6 +20,7 @@ class PurgeSubscriber implements SubscriberInterface
         'POST'   => true,
         'DELETE' => true,
         'PATCH'  => true,
+        'PURGE'  => true,
     ];
 
     /**
@@ -39,7 +41,11 @@ class PurgeSubscriber implements SubscriberInterface
         $request = $event->getRequest();
 
         if (isset(self::$purgeMethods[$request->getMethod()])) {
-            $this->storage->purge($request);
+            $this->storage->purge($request->getUrl());
+
+            if ('PURGE' === $request->getMethod()) {
+                $event->intercept(new Response(204));
+            }
         }
     }
 }
