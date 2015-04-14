@@ -44,7 +44,14 @@ class Utils
     public static function getResponseAge(ResponseInterface $response)
     {
         if ($response->hasHeader('Age')) {
-            return (int) $response->getHeader('Age');
+            $age = (int) $response->getHeader('Age');
+
+            // Increment the age based on the X-Guzzle-Cache-Date
+            if ($cacheDate = $response->getHeader('X-Guzzle-Cache-Date')) {
+                $age += (time() - strtotime($cacheDate));
+            }
+
+            return $age;
         }
 
         $date = strtotime($response->getHeader('Date') ?: 'now');
