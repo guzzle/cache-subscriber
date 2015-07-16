@@ -92,6 +92,12 @@ Add the following to your composer.json:
         }
     }
 
+or
+
+.. code-block:: console
+
+    $ composer require guzzlehttp/cache-subscriber
+
 Creating a CacheSubscriber
 --------------------------
 
