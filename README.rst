@@ -96,7 +96,7 @@ or
 
 .. code-block:: console
 
-$ composer require guzzlehttp/cache-subscriber
+    $ composer require guzzlehttp/cache-subscriber
 
 Creating a CacheSubscriber
 --------------------------
