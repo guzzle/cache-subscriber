@@ -558,6 +558,48 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
     }
 
     /**
+     * Test the resident_time calculation (RFC7234 4.2.3)
+     */
+    public function testAgeIsIncremented()
+    {
+        Server::enqueue([
+            new Response(200, [
+                'Date' => $this->date(),
+                'Cache-Control' => 'public, max-age=60',
+                'Age' => '59'
+            ], Stream::factory('Age is 59!')),
+            new Response(200, [
+                'Date' => $this->date(),
+                'Cache-Control' => 'public, max-age=60',
+                'Age' => '0'
+            ], Stream::factory('It works!')),
+        ]);
+
+        $client = $this->setupClient();
+
+        // First request : the response is cached
+        $response1 = $client->get('/foo');
+        $this->assertEquals(200, $response1->getStatusCode());
+        $this->assertEquals('MISS from GuzzleCache', $response1->getHeader('X-Cache-Lookup'));
+        $this->assertEquals('Age is 59!', $this->getResponseBody($response1));
+
+        // Second request : cache hit, age is now 60
+        sleep(1);
+        $response2 = $client->get('/foo');
+        $this->assertEquals(200, $response1->getStatusCode());
+        $this->assertEquals('HIT from GuzzleCache', $response2->getHeader('X-Cache-Lookup'));
+
+        // This request should not be valid anymore : age is 59 + 2 = 61 which is strictly greater than 60
+        sleep(1);
+        $response3 = $client->get('/foo');
+        $this->assertEquals(200, $response3->getStatusCode());
+        $this->assertEquals('MISS from GuzzleCache', $response3->getHeader('X-Cache-Lookup'));
+        $this->assertEquals('It works!', $this->getResponseBody($response3));
+
+        $this->assertCount(2, Server::received());
+    }
+
+    /**
      * Decode a response body from TestServer.
      *
      * TestServer encodes all responses with base64, so we need to decode them

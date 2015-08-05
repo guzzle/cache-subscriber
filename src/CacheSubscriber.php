@@ -164,6 +164,8 @@ class CacheSubscriber implements SubscriberInterface
             && call_user_func($this->canCache, $request)
             && Utils::canCacheResponse($response)
         ) {
+            // Store the date when the response was cached
+            $response->setHeader('X-Guzzle-Cache-Date', gmdate('D, d M Y H:i:s T', time()));
             $this->storage->cache($request, $response);
         }
 

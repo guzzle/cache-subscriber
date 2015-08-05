@@ -172,6 +172,12 @@ class Utils
         $responseAge = Utils::getResponseAge($response);
         $maxAge = Utils::getDirective($response, 'max-age');
 
+        // Increment the age based on the X-Guzzle-Cache-Date
+        if ($cacheDate = $response->getHeader('X-Guzzle-Cache-Date')) {
+            $responseAge += (time() - strtotime($cacheDate));
+            $response->setHeader('Age', $responseAge);
+        }
+
         // Check the request's max-age header against the age of the response
         if ($maxAge !== null && $responseAge > $maxAge) {
             return false;
