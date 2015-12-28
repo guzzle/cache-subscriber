@@ -64,7 +64,8 @@ class UtilsTest extends PHPUnit_Framework_TestCase
     }
 
     /**
-     * Test that responses are cache-able
+     * Test that responses are cache-able.
+     * 
      * @dataProvider exampleResponses
      */
     public function testCanCacheResponse($canCache, $statusCode, $headers)
