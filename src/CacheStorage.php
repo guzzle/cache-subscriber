@@ -59,6 +59,14 @@ class CacheStorage implements CacheStorageInterface
         $ctime = time();
         $ttl = $this->getTtl($response);
         $key = $this->getCacheKey($request, $this->normalizeVary($response));
+
+        $purgeKey = $this->getPurgeKey($request->getUrl());
+        $keys = $this->cache->fetch($purgeKey) ?: [];
+        if (!isset($keys[$key])) {
+            $keys[$key] = $key;
+            $this->cache->save($purgeKey, $keys);
+        }
+
         $headers = $this->persistHeaders($request);
         $entries = $this->getManifestEntries($key, $ctime, $response, $headers);
         $bodyDigest = null;
@@ -111,8 +119,33 @@ class CacheStorage implements CacheStorageInterface
 
     public function purge($url)
     {
+        $purgeKey = $this->getPurgeKey($url);
+
+        $keys = $this->cache->fetch($purgeKey);
+        if (!$keys) {
+            return;
+        }
+
+        foreach ($keys as $key) {
+            $entries = $this->cache->fetch($key);
+            if (!$entries) {
+                return;
+            }
+
+            // Delete each cached body
+            foreach (unserialize($entries) as $entry) {
+                if ($entry[3]) {
+                    $this->cache->delete($entry[3]);
+                }
+            }
+
+            $this->cache->delete($key);
+        }
+        $this->cache->delete($purgeKey);
+
+        // Delete any cached Vary header responses.
         foreach (['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PURGE'] as $m) {
-            $this->delete(new Request($m, $url));
+            $this->deleteVary(new Request($url, $m));
         }
     }
 
@@ -213,6 +246,18 @@ class CacheStorage implements CacheStorageInterface
     private function getBodyKey($url, StreamInterface $body)
     {
         return $this->keyPrefix . md5($url) . Stream\Utils::hash($body, 'md5');
+    }
+
+    /**
+     * Create a cache key for a purge url.
+     *
+     * @param string          $url  URL of the entry
+     *
+     * @return string
+     */
+    private function getPurgeKey($url)
+    {
+        return $this->keyPrefix . md5('purge' . $url);
     }
 
     /**
