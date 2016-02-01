@@ -145,7 +145,7 @@ class CacheStorage implements CacheStorageInterface
 
         // Delete any cached Vary header responses.
         foreach (['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PURGE'] as $m) {
-            $this->deleteVary(new Request($url, $m));
+            $this->deleteVary(new Request($m, $url));
         }
     }
 
