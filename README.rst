@@ -2,6 +2,13 @@
 Guzzle Cache Subscriber
 =======================
 
+.. important::
+
+    **This repo has not been updated for Guzzle 6 and only supports Guzzle 5.**
+
+    See https://github.com/Kevinrob/guzzle-cache-middleware for a nice Guzzle 6
+    compatible Cache middleware.
+
 Provides a private transparent proxy cache for caching HTTP responses.
 
 Here's a simple example of how it's used:
