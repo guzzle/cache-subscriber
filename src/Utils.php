@@ -152,11 +152,6 @@ class Utils
             return false;
         }
 
-        // Don't fool with Content-Range requests for now
-        if ($response->hasHeader('Content-Range')) {
-            return false;
-        }
-
         $freshness = self::getFreshness($response);
 
         return $freshness === null                    // No freshness info.
