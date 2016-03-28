@@ -599,6 +599,87 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
         $this->assertCount(2, Server::received());
     }
 
+    public function testPurgeAllVariants()
+    {
+        // prepare 4 possible requests
+        $requests = [
+            [
+                'language' => 'de',
+                'client' => 'ClientA',
+            ],
+            [
+                'language' => 'de',
+                'client' => 'ClientB',
+            ],
+            [
+                'language' => 'en',
+                'client' => 'ClientA',
+            ],
+            [
+                'language' => 'en',
+                'client' => 'ClientB',
+            ],
+        ];
+
+        // prepare 1 (/bar) + 8 (/foo) responses, since we will test the cycle twice
+        $responses = [];
+        for ($i = 0; $i < 9; $i++) {
+            $responses[] = new Response(200, [
+                'Cache-Control' => 'max-age=600',
+                'Vary' => 'User-Agent, Language'
+            ]);
+        }
+        Server::enqueue($responses);
+
+        $client = $this->setupClient();
+
+        $response = $client->get('/bar');
+        $this->assertEquals(200, $response->getStatusCode());
+        $this->assertEquals('MISS from GuzzleCache', $response->getHeader('X-Cache-Lookup'));
+        $this->assertEquals('MISS from GuzzleCache', $response->getHeader('X-Cache'));
+        $this->assertCount(1, Server::received());
+
+        $response = $client->get('/bar');
+        $this->assertEquals(200, $response->getStatusCode());
+        $this->assertEquals('HIT from GuzzleCache', $response->getHeader('X-Cache-Lookup'));
+        $this->assertEquals('HIT from GuzzleCache', $response->getHeader('X-Cache'));
+        $this->assertCount(1, Server::received());
+
+        $requestCounter = 1;
+        foreach (['MISS', 'HIT', 'PURGE', 'MISS', 'HIT'] as $expected) {
+
+            if ($expected === 'PURGE') {
+                $client->send($client->createRequest('PURGE', '/foo'));
+                continue;
+            }
+
+            foreach ($requests as $request) {
+                $response = $client->get('/foo', [
+                    'headers' => [
+                        'Language' => $request['language'],
+                        'User-Agent' => $request['client'],
+                    ]
+                ]);
+
+                // if the expected status is MISS, then we expect a client call
+                if ($expected === 'MISS') {
+                    $requestCounter++;
+                }
+                $this->assertCount($requestCounter, Server::received());
+                $this->assertEquals(200, $response->getStatusCode());
+                $this->assertEquals($expected . ' from GuzzleCache', $response->getHeader('X-Cache-Lookup'));
+                $this->assertEquals($expected . ' from GuzzleCache', $response->getHeader('X-Cache'));
+
+                // test bar is untouched
+                $response = $client->get('/bar');
+                $this->assertEquals(200, $response->getStatusCode());
+                $this->assertEquals('HIT from GuzzleCache', $response->getHeader('X-Cache-Lookup'));
+                $this->assertEquals('HIT from GuzzleCache', $response->getHeader('X-Cache'));
+                $this->assertCount($requestCounter, Server::received());
+            }
+        }
+    }
+
     /**
      * Decode a response body from TestServer.
      *
