@@ -22,6 +22,9 @@ class CacheStorage implements CacheStorageInterface
     /** @var int Default cache TTL */
     private $defaultTtl;
 
+    /** @var string Cache tag header name TTL */
+    private $xCacheHeader;
+
     /** @var Cache */
     private $cache;
 
@@ -44,12 +47,14 @@ class CacheStorage implements CacheStorageInterface
      * @param Cache  $cache      Cache backend.
      * @param string $keyPrefix  (optional) Key prefix to add to each key.
      * @param int    $defaultTtl (optional) The default TTL to set, in seconds.
+     * @param string $xCacheHeader  (optional) The cache tag header name.
      */
-    public function __construct(Cache $cache, $keyPrefix = null, $defaultTtl = 0)
+    public function __construct(Cache $cache, $keyPrefix = null, $defaultTtl = 0, $xCacheHeader = 'X-Cache-Tags')
     {
         $this->cache = $cache;
         $this->keyPrefix = $keyPrefix;
         $this->defaultTtl = $defaultTtl;
+        $this->xCacheHeader = $xCacheHeader;
     }
 
     public function cache(
@@ -76,6 +81,11 @@ class CacheStorage implements CacheStorageInterface
             $this->cacheVary($request, $response);
         }
 
+        if ($response->hasHeader($this->xCacheHeader)) {
+            $tags = AbstractMessage::normalizeHeader($response, $this->xCacheHeader);
+            $this->storeTagInformation($key, $tags);
+        }
+
         // Persist the response body if needed
         if ($response->getBody() && $response->getBody()->getSize() > 0) {
             $body = $response->getBody();
@@ -92,6 +102,15 @@ class CacheStorage implements CacheStorageInterface
         ]);
 
         $this->cache->save($key, serialize($entries));
+    }
+
+    private function storeTagInformation($purgeKey, array $tags)
+    {
+        foreach ($tags as $tag) {
+            $entries = $this->cache->fetch($this->getTagKey($tag)) ?: [];
+            $entries[$purgeKey] = $purgeKey;
+            $this->cache->save($this->getTagKey($tag), $entries);
+        }
     }
 
     public function delete(RequestInterface $request)
@@ -146,6 +165,23 @@ class CacheStorage implements CacheStorageInterface
         // Delete any cached Vary header responses.
         foreach (['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PURGE'] as $m) {
             $this->deleteVary(new Request($m, $url));
+        }
+    }
+
+    public function purgeTags(array $tags)
+    {
+        foreach ($tags as $tag) {
+            $purgeTag = $this->getTagKey($tag);
+            $keys = $this->cache->fetch($purgeTag);
+
+            if (!$keys) {
+                continue;
+            }
+
+            foreach ($keys as $key) {
+                $this->cache->delete($key);
+            }
+            $this->cache->delete($purgeTag);
         }
     }
 
@@ -258,6 +294,17 @@ class CacheStorage implements CacheStorageInterface
     private function getPurgeKey($url)
     {
         return $this->keyPrefix . md5('purge' . $url);
+    }
+
+    /**
+     * Create a cache key for a tag.
+     *
+     * @param string $key Tag value
+     * @return string
+     */
+    private function getTagKey($key)
+    {
+        return $this->keyPrefix . md5('tags' . $key);
     }
 
     /**
