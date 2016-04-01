@@ -81,7 +81,7 @@ class UtilsTest extends PHPUnit_Framework_TestCase
         return [
             [true,  200, []],
             [false, 200, ['Cache-Control' => 'no-store']],
-            [false, 200, ['Content-Range' => '0-5']],
+            [true,  200, ['Content-Range' => '0-5']],
             [true,  206, ['Content-Range' => '0-5']],
             [true,  203, []],
             [true,  300, []],

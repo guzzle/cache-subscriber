@@ -146,12 +146,7 @@ class Utils
         if (self::getDirective($response, 'no-store')) {
             return false;
         }
-
-        // Range responses should be 206 Partial Content
-        if ($response->getStatusCode() !== 206 && $response->hasHeader('Content-Range')) {
-            return false;
-        }
-
+        
         $freshness = self::getFreshness($response);
 
         return $freshness === null                    // No freshness info.
