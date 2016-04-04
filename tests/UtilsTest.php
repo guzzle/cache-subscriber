@@ -87,6 +87,7 @@ class UtilsTest extends PHPUnit_Framework_TestCase
             [true,  300, []],
             [true,  301, []],
             [true,  308, []],
+            [true,  404, []],
             [true,  410, []],
             [false, 500, []],
             [false, 201, []],
