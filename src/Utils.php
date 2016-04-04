@@ -128,7 +128,7 @@ class Utils
      */
     public static function canCacheResponse(ResponseInterface $response)
     {
-        static $cacheCodes = [200, 203, 206, 300, 301, 308, 410];
+        static $cacheCodes = [200, 203, 206, 300, 301, 308, 404, 410];
 
         // Check if the response is cacheable based on the code
         if (!in_array((int) $response->getStatusCode(), $cacheCodes)) {
