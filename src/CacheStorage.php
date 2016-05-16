@@ -312,7 +312,7 @@ class CacheStorage implements CacheStorageInterface
                 continue;
             }
 
-            $varyCmp = isset($entry[1]['vary']) ? $entries[1]['vary'] : '';
+            $varyCmp = isset($entry[1]['vary']) ? $entry[1]['vary'] : '';
 
             if ($vary != $varyCmp ||
                 !$this->requestsMatch($vary, $entry[0], $persistedRequest)
