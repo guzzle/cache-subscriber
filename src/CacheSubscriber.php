@@ -161,8 +161,8 @@ class CacheSubscriber implements SubscriberInterface
 
         // Cache the response if it can be cached and isn't already
         if ($request->getConfig()->get('cache_lookup') === 'MISS'
-            && call_user_func($this->canCache, $request)
             && Utils::canCacheResponse($response)
+            && call_user_func($this->canCache, $request)
         ) {
             // Store the date when the response was cached
             $response->setHeader('X-Guzzle-Cache-Date', gmdate('D, d M Y H:i:s T', time()));
