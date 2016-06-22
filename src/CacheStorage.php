@@ -83,7 +83,7 @@ class CacheStorage implements CacheStorageInterface
             $ctime + $ttl
         ]);
 
-        $this->cache->save($key, serialize($entries));
+        $this->cache->save($key, serialize($entries), $ttl);
     }
 
     public function delete(RequestInterface $request)
