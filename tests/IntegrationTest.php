@@ -70,6 +70,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
         $last = $history->getLastResponse();
         $this->assertEquals('HIT from GuzzleCache', $last->getHeader('X-Cache-Lookup'));
         $this->assertEquals('HIT from GuzzleCache', $last->getHeader('X-Cache'));
+        $this->assertEquals(0, $last->getHeader('X-Cache-Ttl'));
 
         // Validate that expired requests without must-revalidate expire.
         $response3 = $client->get('/foo');
@@ -79,6 +80,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
         $last = $history->getLastResponse();
         $this->assertEquals('MISS from GuzzleCache', $last->getHeader('X-Cache-Lookup'));
         $this->assertEquals('MISS from GuzzleCache', $last->getHeader('X-Cache'));
+        $this->assertEquals(0, $last->getHeader('X-Cache-Ttl'));
 
         // Validate that all of our requests were received.
         $this->assertCount(4, Server::received());
@@ -143,6 +145,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
             ['headers' => ['Accept' => 'text/html']]
         );
         $this->assertEquals('It works!', $this->getResponseBody($response1));
+        $this->assertEquals(1000, $response1->getHeader('X-Cache-Ttl'));
 
         $response2 = $client->get(
             '/foo',
@@ -152,6 +155,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
             'MISS from GuzzleCache',
             $response2->getHeader('x-cache')
         );
+        $this->assertEquals(1000, $response2->getHeader('X-Cache-Ttl'));
 
         $decoded = json_decode($this->getResponseBody($response2));
 
@@ -194,6 +198,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
         $response2 = $client->get('/foo');
         $this->assertEquals(200, $response2->getStatusCode());
         $this->assertEquals('HIT from GuzzleCache', $response2->getHeader('X-Cache'));
+        $this->assertEquals(1000, $response2->getHeader('X-Cache-Ttl'));
     }
 
     /**
@@ -377,6 +382,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
             'HIT from GuzzleCache',
             $response->getHeader('x-cache')
         );
+        $this->assertEquals(1000, $response->getHeader('X-Cache-Ttl'));
         $this->assertEquals(
             'Test/2.0 request.',
             json_decode($this->getResponseBody($response))->body
@@ -493,8 +499,11 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
 
         $response1 = $client->get('/foo');
         $this->assertEquals('MISS from GuzzleCache', $response1->getHeader('X-Cache-Lookup'));
+        $this->assertEquals(0, $response1->getHeader('X-Cache-Ttl'));
+
         $response2 = $client->get('/foo');
         $this->assertEquals('HIT from GuzzleCache', $response2->getHeader('X-Cache-Lookup'));
+        $this->assertEquals(0, $response2->getHeader('X-Cache-Ttl'));
         $this->assertEquals('It works!', $this->getResponseBody($response2));
     }
 
