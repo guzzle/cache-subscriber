@@ -116,11 +116,6 @@ class Utils
             return false;
         }
 
-        // Don't fool with Range requests for now
-        if ($request->hasHeader('Range')) {
-            return false;
-        }
-
         return self::getDirective($request, 'no-store') === null;
     }
 
@@ -133,7 +128,7 @@ class Utils
      */
     public static function canCacheResponse(ResponseInterface $response)
     {
-        static $cacheCodes = [200, 203, 300, 301, 410];
+        static $cacheCodes = [200, 203, 206, 300, 301, 308, 404, 410];
 
         // Check if the response is cacheable based on the code
         if (!in_array((int) $response->getStatusCode(), $cacheCodes)) {
@@ -151,12 +146,7 @@ class Utils
         if (self::getDirective($response, 'no-store')) {
             return false;
         }
-
-        // Don't fool with Content-Range requests for now
-        if ($response->hasHeader('Content-Range')) {
-            return false;
-        }
-
+        
         $freshness = self::getFreshness($response);
 
         return $freshness === null                    // No freshness info.
