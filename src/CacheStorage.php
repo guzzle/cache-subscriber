@@ -135,7 +135,7 @@ class CacheStorage implements CacheStorageInterface
         $entries = unserialize($entries);
 
         foreach ($entries as $index => $entry) {
-            $vary = isset($entry[1]['vary']) ? $entry[1]['vary'] : '';
+            $vary = isset($entry[1]['Vary']) ? $entry[1]['Vary'] : (isset($entry[1]['vary']) ? $entry[1]['vary'] : '');
             if ($this->requestsMatch($vary, $headers, $entry[0])) {
                 $match = $entry;
                 $matchIndex = $index;
@@ -312,7 +312,7 @@ class CacheStorage implements CacheStorageInterface
                 continue;
             }
 
-            $varyCmp = isset($entry[1]['vary']) ? $entries[1]['vary'] : '';
+            $varyCmp = isset($entry[1]['Vary']) ? $entry[1]['Vary'] : (isset($entry[1]['vary']) ? $entry[1]['vary'] : '');
 
             if ($vary != $varyCmp ||
                 !$this->requestsMatch($vary, $entry[0], $persistedRequest)
@@ -354,7 +354,7 @@ class CacheStorage implements CacheStorageInterface
         ResponseInterface $response
     ) {
         $key = $this->getVaryKey($request);
-        $this->cache->save($key, $this->normalizeVary($response), $this->getTtl($response));
+        $this->cache->save($key, serialize($this->normalizeVary($response)), $this->getTtl($response));
     }
 
     /**
@@ -371,7 +371,7 @@ class CacheStorage implements CacheStorageInterface
     private function fetchVary(RequestInterface $request)
     {
         $key = $this->getVaryKey($request);
-        $varyHeaders = $this->cache->fetch($key);
+        $varyHeaders = unserialize($this->cache->fetch($key));
 
         return is_array($varyHeaders) ? $varyHeaders : [];
     }
