@@ -64,10 +64,7 @@ class CacheStorage implements CacheStorageInterface
         $bodyDigest = null;
 
         // Persist the Vary response header.
-        if ($response->hasHeader('vary')) {
-            $this->cacheVary($request, $response);
-        }
-
+        $this->cacheVary($request, $response, $ttl);
         // Persist the response body if needed
         if ($response->getBody() && $response->getBody()->getSize() > 0) {
             $body = $response->getBody();
@@ -83,7 +80,7 @@ class CacheStorage implements CacheStorageInterface
             $ctime + $ttl
         ]);
 
-        $this->cache->save($key, serialize($entries));
+        $this->cache->save($key, serialize($entries), $ttl);
     }
 
     public function delete(RequestInterface $request)
@@ -351,10 +348,11 @@ class CacheStorage implements CacheStorageInterface
      */
     private function cacheVary(
         RequestInterface $request,
-        ResponseInterface $response
+        ResponseInterface $response,
+        $ttl
     ) {
         $key = $this->getVaryKey($request);
-        $this->cache->save($key, $this->normalizeVary($response), $this->getTtl($response));
+        $this->cache->save($key, $this->normalizeVary($response), $ttl);
     }
 
     /**
